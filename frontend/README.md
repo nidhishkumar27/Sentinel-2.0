@@ -17,16 +17,19 @@ npm run build
 
 ## Phase 1 preview
 
-The dashboard is a UI preview. Dashboard resource and alert cards are explicitly
-marked demo examples; they are not live, verified, or location-specific data.
+The dashboard is a UI preview. Resource cards are explicitly marked demo
+examples; they are not verified or location-specific. Weather and Safety alert
+cards display only alerts returned by the selected alert service, and clearly
+show loading, empty, unavailable, timeout, error, stale, and demo states.
 Mapping, SOS submission, personal contacts, digital ID, alerts, and the Safety
 Assistant are not connected to backend or AI services. The SOS screen now
 provides a request review flow, but its default incident adapter is unavailable
 and cannot contact emergency services. Do not rely on this preview for
 emergency assistance or current local safety information.
 
-Dashboard sample resources and alerts are hidden unless
-`VITE_ENABLE_SAFETY_DEMO=true`. They are illustrative only when enabled.
+Dashboard sample resources are hidden unless `VITE_ENABLE_SAFETY_DEMO=true`.
+The demo alert service returns an empty demo feed; it does not generate sample
+weather conditions, safety incidents, or current alerts.
 
 ## Phase 2 account screens
 
@@ -59,9 +62,12 @@ separate user action.
 `VITE_API_BASE_URL` is an optional future base URL only; no endpoint is assumed
 or called. `VITE_ENABLE_SAFETY_DEMO=true` opts into isolated demo adapters, which
 return empty resource/alert lists and do not create sample locations or current
-alerts. It is disabled by default. For real integration, coordinate backend
-contracts first, implement adapters that satisfy the frontend interfaces, and
-select them centrally in `src/app/integrations.ts`. A map provider can be
+alerts. It is disabled by default. The dedicated Alerts page filters the
+service feed into Weather and Safety categories; neither category represents
+live data unless a working alert provider is explicitly configured. For real
+integration, coordinate backend contracts first, implement adapters that
+satisfy the frontend interfaces, and select them centrally in
+`src/app/integrations.ts`. A map provider can be
 integrated by implementing `SafetyMapRendererProps` and selecting that renderer
 in the same file; the page does not depend on a specific mapping library.
 

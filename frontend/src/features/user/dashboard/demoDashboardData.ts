@@ -7,16 +7,8 @@ export type DemoResource = {
   tone: "blue" | "green" | "amber";
 };
 
-export type DemoAlert = {
-  title: string;
-  description: string;
-  icon: IconName;
-  tone: "amber" | "blue";
-};
-
 export const demoDashboardData: {
   resources: DemoResource[];
-  alerts: DemoAlert[];
 } = {
   resources: [
     {
@@ -36,22 +28,6 @@ export const demoDashboardData: {
       description: "Example of a visitor-support resource",
       icon: "tourist",
       tone: "amber",
-    },
-  ],
-  alerts: [
-    {
-      title: "Sample travel advisory",
-      description:
-        "Illustrative alert only. Current local advisories are not connected.",
-      icon: "alerts",
-      tone: "amber",
-    },
-    {
-      title: "Weather alert preview",
-      description:
-        "Illustrative card only. No live weather information is available.",
-      icon: "sparkle",
-      tone: "blue",
     },
   ],
 };

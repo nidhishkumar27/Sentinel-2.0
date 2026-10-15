@@ -172,6 +172,91 @@ describe("frontend integration readiness", () => {
     expect(screen.getByText(/No alert response was confirmed/)).toBeTruthy();
   });
 
+  it("shows separate dashboard weather and safety cards with unavailable states and category links", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "unavailable",
+    });
+
+    renderWithMemoryRouter(<DashboardPage />);
+
+    expect(
+      screen.getByRole("heading", { name: "Weather Alerts" }),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("heading", { name: "Safety Alerts" }),
+    ).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "Weather Alerts unavailable. No alert service is connected.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByText(
+        "Safety Alerts unavailable. No alert service is connected.",
+      ),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("link", { name: "View weather alerts" }).getAttribute("href"),
+    ).toBe("/alerts?category=weather");
+    expect(
+      screen.getByRole("link", { name: "View safety alerts" }).getAttribute("href"),
+    ).toBe("/alerts?category=safety");
+  });
+
+  it("filters alert results by weather and safety categories", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [
+          {
+            id: "weather-alert",
+            category: "weather",
+            title: "Heavy rain advisory",
+            message: "A configured source reported heavy rain.",
+            timestamp: "2025-01-01T12:00:00.000Z",
+            source: "Test source",
+          },
+          {
+            id: "safety-alert",
+            category: "emergency",
+            title: "Safety incident advisory",
+            message: "A configured source reported a safety advisory.",
+            timestamp: "2025-01-01T12:00:00.000Z",
+            source: "Test source",
+          },
+        ],
+        fetchedAt: "2025-01-01T12:00:00.000Z",
+        freshness: "fresh",
+      },
+    });
+
+    const user = userEvent.setup();
+    render(
+      <MemoryRouter initialEntries={["/alerts?category=weather"]}>
+        <AlertsPage />
+      </MemoryRouter>,
+    );
+
+    expect(
+      await screen.findByRole("heading", { name: "Heavy rain advisory" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Safety incident advisory" }),
+    ).toBeNull();
+
+    await user.click(screen.getByRole("link", { name: "Safety" }));
+
+    expect(
+      await screen.findByRole("heading", { name: "Safety incident advisory" }),
+    ).toBeTruthy();
+    expect(
+      screen.queryByRole("heading", { name: "Heavy rain advisory" }),
+    ).toBeNull();
+    expect(
+      screen.getByRole("link", { name: "Safety" }).getAttribute("aria-current"),
+    ).toBe("page");
+  });
+
   it("shows an explicit timeout state for safety-resource searches", async () => {
     vi.spyOn(safetyIntegrations.resources, "findResourcesNear").mockResolvedValue({
       status: "timeout",
@@ -310,7 +395,7 @@ describe("frontend integration readiness", () => {
     expect((screen.getByLabelText("Your question") as HTMLTextAreaElement).value).toBe("");
   });
 
-  it("hides dashboard samples while demo mode is disabled", () => {
+  it("hides dashboard samples and reports unavailable data while demo mode is disabled", async () => {
     const previousDemoSetting = integrationConfig.demoEnabled;
     integrationConfig.demoEnabled = false;
 
@@ -321,7 +406,16 @@ describe("frontend integration readiness", () => {
       expect(screen.queryByText("Medical support")).toBeNull();
       expect(screen.queryByText("Sample travel advisory")).toBeNull();
       expect(screen.getByText("No safety-resource service is connected.")).toBeTruthy();
-      expect(screen.getByText("No alert service is connected.")).toBeTruthy();
+      expect(
+        await screen.findByText(
+          "Weather Alerts unavailable. No alert service is connected.",
+        ),
+      ).toBeTruthy();
+      expect(
+        screen.getByText(
+          "Safety Alerts unavailable. No alert service is connected.",
+        ),
+      ).toBeTruthy();
     } finally {
       integrationConfig.demoEnabled = previousDemoSetting;
     }

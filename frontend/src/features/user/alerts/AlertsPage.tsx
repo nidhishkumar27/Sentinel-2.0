@@ -1,15 +1,17 @@
 import { useEffect, useState } from "react";
+import { Link, useSearchParams } from "react-router-dom";
 import { Icon, type IconName } from "../../../components/ui/Icon";
 import { integrationConfig, safetyIntegrations } from "../../../app/integrations";
 import type { AlertFeed, SafetyAlert } from "../../../types/safetyIntegrations";
 
-type LoadState =
-  | "loading"
-  | "unavailable"
-  | "timeout"
-  | "error"
-  | "empty"
-  | "ready";
+type LoadState = "loading" | "unavailable" | "timeout" | "error" | "empty" | "ready";
+type AlertFilter = "all" | "weather" | "safety";
+
+const alertFilters: { id: AlertFilter; label: string }[] = [
+  { id: "all", label: "All alerts" },
+  { id: "weather", label: "Weather" },
+  { id: "safety", label: "Safety" },
+];
 
 const categoryPresentation: Record<
   SafetyAlert["category"],
@@ -53,6 +55,20 @@ function AlertCard({ alert }: { alert: SafetyAlert }) {
 export function AlertsPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [feed, setFeed] = useState<AlertFeed | null>(null);
+  const [searchParams] = useSearchParams();
+  const requestedFilter = searchParams.get("category");
+  const filter: AlertFilter =
+    requestedFilter === "weather" || requestedFilter === "safety"
+      ? requestedFilter
+      : "all";
+  const filteredAlerts =
+    feed?.alerts.filter((alert) =>
+      filter === "all"
+        ? true
+        : filter === "weather"
+          ? alert.category === "weather"
+          : alert.category !== "weather",
+    ) ?? [];
 
   useEffect(() => {
     let active = true;
@@ -101,6 +117,21 @@ export function AlertsPage() {
           location-specific alerts.
         </p>
       )}
+
+      <nav aria-label="Alert categories" className="alert-category-nav">
+        {alertFilters.map((item) => (
+          <Link
+            aria-current={filter === item.id ? "page" : undefined}
+            className={`alert-category-link${filter === item.id ? " alert-category-link--active" : ""}`}
+            key={item.id}
+            to={
+              item.id === "all" ? "/alerts" : `/alerts?category=${item.id}`
+            }
+          >
+            {item.label}
+          </Link>
+        ))}
+      </nav>
 
       {state === "loading" && (
         <p className="integration-card integration-state" role="status">
@@ -164,7 +195,7 @@ export function AlertsPage() {
         </section>
       )}
       {state === "ready" && feed && (
-        <section aria-label="Safety alerts" className="live-alert-list">
+        <section aria-label="Alert results" className="live-alert-list">
           {feed.freshness === "stale" && (
             <p className="stale-data-banner" role="status">
               These alerts may be out of date. Last response received{" "}
@@ -176,9 +207,26 @@ export function AlertsPage() {
               Demo alert data — not current or location-specific.
             </p>
           )}
-          {feed.alerts.map((alert) => (
-            <AlertCard alert={alert} key={alert.id} />
-          ))}
+          {filteredAlerts.length > 0 ? (
+            filteredAlerts.map((alert) => (
+              <AlertCard alert={alert} key={alert.id} />
+            ))
+          ) : (
+            <section className="integration-card integration-state" role="status">
+              <h2>
+                {filter === "weather"
+                  ? "No weather alerts returned"
+                  : filter === "safety"
+                    ? "No safety alerts returned"
+                    : "No alerts returned"}
+              </h2>
+              <p>
+                {feed.freshness === "demo"
+                  ? "The demo integration returned no matching alerts. No live information is being shown."
+                  : `The configured service returned no ${filter === "all" ? "" : `${filter} `}alerts.`}
+              </p>
+            </section>
+          )}
         </section>
       )}
     </div>

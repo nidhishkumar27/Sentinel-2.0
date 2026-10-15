@@ -1,13 +1,23 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { integrationConfig } from "../../../app/integrations";
+import {
+  integrationConfig,
+  safetyIntegrations,
+} from "../../../app/integrations";
 import { Icon, type IconName } from "../../../components/ui/Icon";
 import {
   demoDashboardData,
-  type DemoAlert,
   type DemoResource,
 } from "./demoDashboardData";
+import type {
+  AlertFeed,
+  ServiceFailure,
+  SafetyAlert,
+} from "../../../types/safetyIntegrations";
 
 type DataState = "loading" | "error" | "empty" | "ready";
+type AlertLoadState = "loading" | ServiceFailure | "ready";
+type AlertGroup = "weather" | "safety";
 
 function DataPanel({
   state,
@@ -60,18 +70,125 @@ function ResourceCard({ resource }: { resource: DemoResource }) {
   );
 }
 
-function AlertCard({ alert }: { alert: DemoAlert }) {
+function formatTimestamp(timestamp: string) {
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime())
+    ? "Time not provided"
+    : date.toLocaleString();
+}
+
+function DashboardAlertItem({ alert }: { alert: SafetyAlert }) {
   return (
-    <article className="alert-card">
-      <span className={`alert-icon alert-icon--${alert.tone}`}>
-        <Icon name={alert.icon} />
+    <article className="live-alert-card">
+      <span className="alert-icon alert-icon--blue">
+        <Icon name={alert.category === "weather" ? "sparkle" : "shield"} />
       </span>
-      <span className="alert-copy">
-        <span className="alert-title">{alert.title}</span>
-        <span className="alert-description">{alert.description}</span>
-      </span>
-      <span className="demo-tag">DEMO</span>
+      <div className="live-alert-copy">
+        <div className="live-alert-heading">
+          <span className="alert-category">
+            {alert.category === "weather" ? "Weather" : alert.category}
+          </span>
+          <time dateTime={alert.timestamp}>
+            {formatTimestamp(alert.timestamp)}
+          </time>
+        </div>
+        <h3>{alert.title}</h3>
+        <p>{alert.message}</p>
+        <span className="alert-source">Source: {alert.source}</span>
+      </div>
     </article>
+  );
+}
+
+function DashboardAlertSection({
+  group,
+  state,
+  feed,
+}: {
+  group: AlertGroup;
+  state: AlertLoadState;
+  feed: AlertFeed | null;
+}) {
+  const isWeather = group === "weather";
+  const heading = isWeather ? "Weather Alerts" : "Safety Alerts";
+  const headingId = `${group}-alerts-heading`;
+  const categoryAlerts =
+    feed?.alerts.filter((alert) =>
+      isWeather ? alert.category === "weather" : alert.category !== "weather",
+    ) ?? [];
+  const linkTo = `/alerts?category=${group}`;
+
+  return (
+    <section aria-labelledby={headingId} className="alerts-section">
+      <div className="section-heading section-heading--compact">
+        <div>
+          <p className="section-eyebrow">
+            {isWeather ? "WEATHER HAZARDS" : "INCIDENTS & ADVISORIES"}
+          </p>
+          <h2 id={headingId}>{heading}</h2>
+        </div>
+        <Link
+          aria-label={`View ${heading.toLowerCase()}`}
+          className="text-link"
+          to={linkTo}
+        >
+          View all <Icon name="arrow" />
+        </Link>
+      </div>
+      <p className="dashboard-alert-description">
+        {isWeather
+          ? "Heavy rain, flooding, storms and extreme heat when reported by a configured source."
+          : "Safety incidents and advisories returned by configured sources."}
+      </p>
+      {state === "loading" && (
+        <p className="data-message" role="status">
+          Loading {isWeather ? "weather" : "safety"} alerts…
+        </p>
+      )}
+      {state === "unavailable" && (
+        <p className="data-message" role="status">
+          {heading} unavailable. No alert service is connected.
+        </p>
+      )}
+      {state === "timeout" && (
+        <p className="data-message data-message--error" role="alert">
+          {heading} request timed out. No alert response was confirmed.
+        </p>
+      )}
+      {state === "error" && (
+        <p className="data-message data-message--error" role="alert">
+          {heading} could not be loaded. Try again later.
+        </p>
+      )}
+      {state === "ready" && feed && (
+        <>
+          {feed.freshness === "stale" && (
+            <p className="stale-data-banner" role="status">
+              These alerts may be out of date. Last response received{" "}
+              {formatTimestamp(feed.fetchedAt)}.
+            </p>
+          )}
+          {feed.freshness === "demo" && (
+            <p className="integration-demo-banner" role="note">
+              Demo alert data — not current or location-specific.
+            </p>
+          )}
+          {categoryAlerts.length > 0 ? (
+            <div className="live-alert-list">
+              {categoryAlerts.slice(0, 2).map((alert) => (
+                <DashboardAlertItem alert={alert} key={alert.id} />
+              ))}
+            </div>
+          ) : (
+            <p className="data-message" role="status">
+              {feed.freshness === "demo"
+                ? `The demo alert service returned no ${isWeather ? "weather" : "safety"} alerts. No live information is shown.`
+                : `No ${isWeather ? "weather" : "safety"} alerts were returned by the configured service.`}
+            </p>
+          )}
+        </>
+      )}
+    </section>
   );
 }
 
@@ -104,7 +221,37 @@ export function DashboardPage() {
   const resources = integrationConfig.demoEnabled
     ? demoDashboardData.resources
     : [];
-  const alerts = integrationConfig.demoEnabled ? demoDashboardData.alerts : [];
+  const [alertState, setAlertState] = useState<AlertLoadState>("loading");
+  const [alertFeed, setAlertFeed] = useState<AlertFeed | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    Promise.resolve()
+      .then(() => safetyIntegrations.alerts.getAlerts())
+      .then(
+        (result) => {
+          if (!active) {
+            return;
+          }
+          if (result.status !== "success") {
+            setAlertState(result.status);
+            return;
+          }
+          setAlertFeed(result.value);
+          setAlertState("ready");
+        },
+        () => {
+          if (active) {
+            setAlertState("error");
+          }
+        },
+      );
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   return (
     <div className="dashboard">
@@ -112,8 +259,9 @@ export function DashboardPage() {
         <div className="demo-notice" role="note">
           <Icon name="sparkle" />
           <span>
-            <strong>Demo preview.</strong> The resources and alerts below are
-            examples, not live or location-specific information.
+            <strong>Demo preview.</strong> Resource examples are not
+            location-specific. Alerts appear only when returned by the
+            selected alert service.
           </span>
         </div>
       )}
@@ -168,6 +316,19 @@ export function DashboardPage() {
         </div>
       </section>
 
+      <div aria-label="Weather and safety alerts" className="dashboard-alert-grid">
+        <DashboardAlertSection
+          feed={alertFeed}
+          group="weather"
+          state={alertState}
+        />
+        <DashboardAlertSection
+          feed={alertFeed}
+          group="safety"
+          state={alertState}
+        />
+      </div>
+
       <section aria-labelledby="resources-heading" className="dashboard-section">
         <div className="section-heading">
           <div>
@@ -196,36 +357,6 @@ export function DashboardPage() {
       </section>
 
       <div className="dashboard-lower-grid">
-        <section
-          aria-labelledby="alerts-heading"
-          className="dashboard-section alerts-section"
-        >
-          <div className="section-heading section-heading--compact">
-            <div>
-              <p className="section-eyebrow">STAY IN THE KNOW</p>
-              <h2 id="alerts-heading">Recent alerts</h2>
-            </div>
-            <Link aria-label="View alerts" className="round-link" to="/alerts">
-              <Icon name="arrow" />
-            </Link>
-          </div>
-          <div className="alert-list">
-            <DataPanel
-              emptyMessage={
-                integrationConfig.demoEnabled
-                  ? "No example alerts to show."
-                  : "No alert service is connected."
-              }
-              sectionName="Alerts"
-              state={alerts.length > 0 ? "ready" : "empty"}
-            >
-              {alerts.map((alert) => (
-                <AlertCard alert={alert} key={alert.title} />
-              ))}
-            </DataPanel>
-          </div>
-        </section>
-
         <section
           aria-labelledby="quick-actions-heading"
           className="dashboard-section actions-section"
