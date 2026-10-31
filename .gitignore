@@ -54,3 +54,6 @@ $RECYCLE.BIN/
 .vscode-test/
 **/.idea/**/workspace.xml
 **/.idea/**/tasks.xml
+
+ai-engine/data/qdrant/
+
