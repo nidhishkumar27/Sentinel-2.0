@@ -1,3 +1,4 @@
+
 import hashlib
 from pathlib import Path
 
@@ -10,6 +11,7 @@ QDRANT_PATH = BASE_DIR / "data" / "qdrant"
 COLLECTION_NAME = "sentinel_knowledge"
 VECTOR_SIZE = 384
 
+# Create one persistent Qdrant client.
 client = QdrantClient(path=str(QDRANT_PATH))
 
 
@@ -32,9 +34,6 @@ def recreate_collection():
     if client.collection_exists(COLLECTION_NAME):
         client.delete_collection(COLLECTION_NAME)
 
-    if client.collection_exists(COLLECTION_NAME):
-        raise RuntimeError("Failed to delete the existing Qdrant collection.")
-
     client.create_collection(
         collection_name=COLLECTION_NAME,
         vectors_config=models.VectorParams(
@@ -44,6 +43,7 @@ def recreate_collection():
     )
 
     print("Qdrant collection recreated successfully.")
+
 
 def store_documents(chunks: list[dict]):
     """Store chunks using deterministic IDs."""
@@ -91,6 +91,6 @@ def search_documents(query_embedding: list[float], limit: int = 5):
 
 
 def close_vector_store():
-    """Close the local Qdrant connection."""
+    """Close the Qdrant connection when the application shuts down."""
 
     client.close()
