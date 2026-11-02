@@ -82,45 +82,352 @@ describe("frontend integration readiness", () => {
     expect(gateway.signIn).toHaveBeenCalledTimes(1);
   });
 
-  it("shows SOS unavailable without claiming success or inventing a reference", async () => {
-    const user = userEvent.setup();
-    renderWithMemoryRouter(<SOSPage />);
+  it(
+    "opens the SOS popup immediately and starts a five-second countdown",
+    async () => {
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
 
-    await user.click(screen.getByRole("radio", { name: /Medical/ }));
-    await user.click(screen.getByRole("button", { name: "Review request" }));
-    await user.click(
-      screen.getByRole("button", { name: "Submit emergency request" }),
-    );
+      await user.click(screen.getByRole("button", { name: "SOS" }));
 
-    expect(
-      await screen.findByText("Emergency submission unavailable"),
-    ).toBeTruthy();
-    expect(screen.queryByText(/Incident reference:/)).toBeNull();
-    expect(
-      screen.queryByText(/submission confirmed/i),
-    ).toBeNull();
-  });
+      expect(screen.getByRole("dialog", { name: /Emergency SOS/i })).toBeTruthy();
+      expect(screen.getByText("5")).toBeTruthy();
 
-  it("does not automatically retry an ambiguous SOS outcome", async () => {
+      await new Promise((resolve) => setTimeout(resolve, 1100));
+      expect(screen.getByText("4")).toBeTruthy();
+    },
+    15000,
+  );
+
+  it(
+    "shows all categories and keeps the countdown running after selection",
+    async () => {
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      expect(screen.getByRole("button", { name: /POLICE/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /FIRE/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /MEDICAL/i })).toBeTruthy();
+      expect(screen.getByRole("button", { name: /LOST \/ DISORIENTED/i })).toBeTruthy();
+
+      await user.click(screen.getByRole("button", { name: /MEDICAL/i }));
+      await new Promise((resolve) => setTimeout(resolve, 3100));
+
+      expect(screen.getByText("2")).toBeTruthy();
+      expect(screen.getByRole("button", { name: /MEDICAL/i }).getAttribute("aria-pressed")).toBe("true");
+    },
+    15000,
+  );
+
+  it("includes a non-empty typed description in the initial request and shows the ready-to-send state", async () => {
     const submit = vi
       .spyOn(safetyIntegrations.incidents, "submitIncident")
-      .mockResolvedValue({ status: "unknown", reason: "connection-lost" });
+      .mockResolvedValue({ status: "unavailable" });
     const user = userEvent.setup();
     renderWithMemoryRouter(<SOSPage />);
 
-    await user.click(screen.getByRole("radio", { name: /Police/ }));
-    await user.click(screen.getByRole("button", { name: "Review request" }));
-    await user.click(
-      screen.getByRole("button", { name: "Submit emergency request" }),
-    );
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    const textarea = screen.getByLabelText("Describe what happened (optional)");
+    await user.type(textarea, "Someone is following me.");
 
-    expect(await screen.findByText("Submission outcome unknown")).toBeTruthy();
-    expect(submit).toHaveBeenCalledTimes(1);
-    expect(
-      screen.queryByRole("button", { name: "Submit emergency request" }),
-    ).toBeNull();
-    expect(screen.queryByRole("button", { name: /retry/i })).toBeNull();
-  });
+    expect(screen.getByText("DESCRIPTION READY TO SEND")).toBeTruthy();
+
+    await new Promise((resolve) => setTimeout(resolve, 5100));
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({ description: "Someone is following me." }),
+      );
+    }, { timeout: 10000 });
+
+    expect(screen.getByText(/DESCRIPTION INCLUDED IN INITIAL SUBMISSION/i)).toBeTruthy();
+  }, 20000);
+
+  it("omits an empty description from the initial submission request", async () => {
+    const submit = vi
+      .spyOn(safetyIntegrations.incidents, "submitIncident")
+      .mockResolvedValue({ status: "unavailable" });
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<SOSPage />);
+
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    await new Promise((resolve) => setTimeout(resolve, 5100));
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledWith(
+        expect.not.objectContaining({ description: expect.any(String) }),
+      );
+    }, { timeout: 10000 });
+
+    expect(screen.getByText("NO DESCRIPTION ADDED")).toBeTruthy();
+  }, 20000);
+
+  it("includes voice transcription in the description field and initial request before submission", async () => {
+    class FakeSpeechRecognition {
+      public lang: string | undefined;
+      public interimResults: boolean | undefined;
+      public continuous: boolean | undefined;
+      public onstart: (() => void) | null = null;
+      public onresult: ((event: any) => void) | null = null;
+      public onerror: ((event: any) => void) | null = null;
+      public onend: (() => void) | null = null;
+      public start = () => {
+        this.onstart?.();
+        this.onresult?.({ results: [[{ transcript: "I am injured." }]] });
+        this.onend?.();
+      };
+      public stop = vi.fn();
+    }
+
+    Object.defineProperty(window, "SpeechRecognition", {
+      value: FakeSpeechRecognition,
+      configurable: true,
+    });
+
+    const submit = vi
+      .spyOn(safetyIntegrations.incidents, "submitIncident")
+      .mockResolvedValue({ status: "unavailable" });
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<SOSPage />);
+
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    await user.click(screen.getByRole("button", { name: /Speak \(optional\)/i }));
+
+    const textarea = screen.getByLabelText("Describe what happened (optional)") as HTMLTextAreaElement;
+    expect(textarea.value).toBe("I am injured.");
+    expect(screen.getByText("VOICE TRANSCRIPTION READY TO SEND")).toBeTruthy();
+
+    await new Promise((resolve) => setTimeout(resolve, 5100));
+
+    await waitFor(() => {
+      expect(submit).toHaveBeenCalledWith(
+        expect.objectContaining({ description: "I am injured." }),
+      );
+    }, { timeout: 10000 });
+
+    expect(screen.getByText(/VOICE TRANSCRIPTION INCLUDED IN INITIAL SUBMISSION/i)).toBeTruthy();
+  }, 20000);
+
+  it(
+    "shows a sending state and prevents duplicates while the SOS request is in flight",
+    async () => {
+      const submit = vi
+        .spyOn(safetyIntegrations.incidents, "submitIncident")
+        .mockImplementation(
+          () => new Promise((resolve) => setTimeout(() => resolve({ status: "unavailable" }), 200)),
+        );
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      await new Promise((resolve) => setTimeout(resolve, 5100));
+
+      await waitFor(() => {
+        expect(submit).toHaveBeenCalledTimes(1);
+        expect(screen.getByText("SENDING EMERGENCY REQUEST...")).toBeTruthy();
+      }, { timeout: 10000 });
+    },
+    20000,
+  );
+
+  it(
+    "submits with UNKNOWN when no category is chosen before the countdown ends and never shows a success message for an unavailable service",
+    async () => {
+      const submit = vi
+        .spyOn(safetyIntegrations.incidents, "submitIncident")
+        .mockResolvedValue({ status: "unavailable" });
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      await new Promise((resolve) => setTimeout(resolve, 5100));
+
+      await waitFor(() => {
+        expect(submit).toHaveBeenCalledWith(
+          expect.objectContaining({ category: "unknown" }),
+        );
+      }, { timeout: 10000 });
+
+      expect(await screen.findByText("EMERGENCY SUBMISSION UNAVAILABLE")).toBeTruthy();
+      expect(screen.queryByText("EMERGENCY REQUEST SENT")).toBeNull();
+      expect(screen.queryByText("IT WAS SENT")).toBeNull();
+    },
+    20000,
+  );
+
+  it(
+    "renders a confirmed SOS status with reference and category when the adapter confirms",
+    async () => {
+      const submit = vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockResolvedValue({
+        status: "confirmed",
+        confirmation: {
+          reference: "INC-1001",
+          status: "received",
+        },
+      });
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      await user.click(screen.getByRole("button", { name: /MEDICAL/i }));
+      await new Promise((resolve) => setTimeout(resolve, 5100));
+
+      await waitFor(() => {
+        expect(submit).toHaveBeenCalledWith(
+          expect.objectContaining({ category: "medical" }),
+        );
+      }, { timeout: 10000 });
+
+      expect(await screen.findByText("EMERGENCY REQUEST SENT")).toBeTruthy();
+      expect(screen.getByText(/Incident reference:/i)).toBeTruthy();
+      expect(screen.getByText(/INC-1001/i)).toBeTruthy();
+      expect(screen.getByText(/Category:/i)).toBeTruthy();
+    },
+    20000,
+  );
+
+  it("preserves a late voice transcription for the same incident and keeps the original client ID", async () => {
+    class LateVoiceRecognition {
+      public lang: string | undefined;
+      public interimResults: boolean | undefined;
+      public continuous: boolean | undefined;
+      public onstart: (() => void) | null = null;
+      public onresult: ((event: any) => void) | null = null;
+      public onerror: ((event: any) => void) | null = null;
+      public onend: (() => void) | null = null;
+      public start = () => {
+        this.onstart?.();
+        setTimeout(() => {
+          this.onresult?.({ results: [[{ transcript: "I am injured." }]] });
+          this.onend?.();
+        }, 6100);
+      };
+      public stop = vi.fn();
+    }
+
+    Object.defineProperty(window, "SpeechRecognition", {
+      value: LateVoiceRecognition,
+      configurable: true,
+    });
+
+    const submitSpy = vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockResolvedValue({
+      status: "confirmed",
+      confirmation: { reference: "INC-2001", status: "received" },
+    });
+    const updateSpy = vi
+      .spyOn(safetyIntegrations.incidents, "updateIncidentDescription")
+      .mockResolvedValue({
+        status: "confirmed",
+        confirmation: { reference: "INC-2001", status: "updated" },
+      });
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<SOSPage />);
+
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    await user.click(screen.getByRole("button", { name: /Speak \(optional\)/i }));
+    await new Promise((resolve) => setTimeout(resolve, 7000));
+
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1), { timeout: 15000 });
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const incidentText = screen.getByText(/Client incident ID:/i).textContent ?? "";
+    const match = incidentText.match(/Client incident ID:\s*(.+)$/i);
+    const incidentId = match ? match[1].trim() : "";
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ incidentId, description: "I am injured." }),
+    );
+    expect(screen.getByText("UPDATE CONFIRMED")).toBeTruthy();
+  }, 25000);
+
+  it("keeps late text edits with the original incident ID and notifies when backend updates are unsupported", async () => {
+    const submitSpy = vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockResolvedValue({
+      status: "confirmed",
+      confirmation: { reference: "INC-2002", status: "received" },
+    });
+    const updateSpy = vi
+      .spyOn(safetyIntegrations.incidents, "updateIncidentDescription")
+      .mockResolvedValue({ status: "unavailable" });
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<SOSPage />);
+
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    await new Promise((resolve) => setTimeout(resolve, 5100));
+
+    const textarea = screen.getByLabelText("Describe what happened (optional)") as HTMLTextAreaElement;
+    await user.clear(textarea);
+    await user.type(textarea, "I am lost.");
+
+    await waitFor(() => expect(updateSpy).toHaveBeenCalledTimes(1), { timeout: 15000 });
+    expect(submitSpy).toHaveBeenCalledTimes(1);
+
+    const incidentText = screen.getByText(/Client incident ID:/i).textContent ?? "";
+    const match = incidentText.match(/Client incident ID:\s*(.+)$/i);
+    const incidentId = match ? match[1].trim() : "";
+
+    expect(updateSpy).toHaveBeenCalledWith(
+      expect.objectContaining({ incidentId, description: "I am lost." }),
+    );
+    expect(screen.getByText("NOT ATTACHED — BACKEND UPDATE NOT SUPPORTED")).toBeTruthy();
+  }, 25000);
+
+  it("marks failed description updates as UPDATE FAILED", async () => {
+    vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockResolvedValue({
+      status: "confirmed",
+      confirmation: { reference: "INC-2003", status: "received" },
+    });
+    vi.spyOn(safetyIntegrations.incidents, "updateIncidentDescription").mockResolvedValue({
+      status: "rejected",
+      message: "service rejected update",
+    });
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<SOSPage />);
+
+    await user.click(screen.getByRole("button", { name: "SOS" }));
+    await new Promise((resolve) => setTimeout(resolve, 5100));
+    const textarea = screen.getByLabelText("Describe what happened (optional)") as HTMLTextAreaElement;
+    await user.type(textarea, "Emergency details updated.");
+
+    await waitFor(() => expect(screen.getByText("UPDATE FAILED")).toBeTruthy(), {
+      timeout: 15000,
+    });
+  }, 25000);
+
+  it(
+    "renders a rejected status when the service rejects the request",
+    async () => {
+      vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockResolvedValue({
+        status: "rejected",
+        message: "not accepted",
+      });
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      await new Promise((resolve) => setTimeout(resolve, 5100));
+
+      expect(await screen.findByText("EMERGENCY REQUEST NOT SENT")).toBeTruthy();
+    },
+    20000,
+  );
+
+  it(
+    "renders an unknown status when the service timeout makes the result uncertain",
+    async () => {
+      vi.spyOn(safetyIntegrations.incidents, "submitIncident").mockImplementation(
+        () => new Promise((resolve) => setTimeout(() => resolve({ status: "unknown", reason: "timeout" }), 1000)),
+      );
+      const user = userEvent.setup();
+      renderWithMemoryRouter(<SOSPage />);
+
+      await user.click(screen.getByRole("button", { name: "SOS" }));
+      await new Promise((resolve) => setTimeout(resolve, 5100));
+
+      expect(await screen.findByText("SUBMISSION STATUS UNKNOWN")).toBeTruthy();
+    },
+    20000,
+  );
 
   it("does not request browser geolocation when the map first loads", () => {
     const requestLocation = vi
@@ -147,6 +454,37 @@ describe("frontend integration readiness", () => {
       /valid latitude.*longitude/i,
     );
     expect(screen.queryByText("Manual coordinates entered")).toBeNull();
+  });
+
+  it("tracks the latest geolocation snapshot and freshness metadata", async () => {
+    const getCurrentPosition = vi.fn((success) => {
+      success({
+        coords: {
+          latitude: 12.34,
+          longitude: 56.78,
+          accuracy: 9,
+        },
+        timestamp: Date.now(),
+      });
+    });
+    Object.defineProperty(window.navigator, "geolocation", {
+      configurable: true,
+      value: { getCurrentPosition },
+    });
+
+    const result = await safetyIntegrations.geolocation.requestCurrentLocation();
+
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.location.latitude).toBe(12.34);
+      expect(result.location.longitude).toBe(56.78);
+      expect(result.location.accuracyMeters).toBe(9);
+      expect(result.location.freshness).toBe("fresh");
+      expect(safetyIntegrations.geolocation.getLatestLocation()).toMatchObject({
+        latitude: 12.34,
+        longitude: 56.78,
+      });
+    }
   });
 
   it("shows the honest unavailable alerts state", async () => {
@@ -429,7 +767,7 @@ describe("frontend integration readiness", () => {
       </AppProviders>,
     );
 
-    expect(await screen.findByRole("heading", { name: "Request help" })).toBeTruthy();
+    expect(await screen.findByRole("heading", { name: "Emergency SOS" })).toBeTruthy();
     await waitFor(() => {
       expect(screen.queryByText("Checking account session…")).toBeNull();
     });
@@ -438,7 +776,7 @@ describe("frontend integration readiness", () => {
   it("keeps all user-facing routes reachable", async () => {
     const routes = [
       { path: "/", heading: "Travel with confidence." },
-      { path: "/sos", heading: "Request help" },
+      { path: "/sos", heading: "Emergency SOS" },
       { path: "/safety-map", heading: "Safety map" },
       { path: "/emergency-contacts", heading: "Emergency contacts" },
       { path: "/digital-id", heading: "Digital safety ID" },

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { Icon } from "../../../components/ui/Icon";
 import {
   integrationConfig,
@@ -17,6 +17,7 @@ type LocationState =
   | "permission-denied"
   | "timeout"
   | "unavailable"
+  | "unsupported"
   | "manual";
 
 type ResourceState =
@@ -28,6 +29,17 @@ type ResourceState =
   | "empty"
   | "ready";
 
+const permissionMessages: Record<
+  "granted" | "denied" | "prompt" | "unsupported" | "unknown",
+  string
+> = {
+  granted: "Location access is enabled.",
+  denied: "Location access is currently denied. Enable it in browser or device settings.",
+  prompt: "Location access has not been granted yet.",
+  unsupported: "This browser does not support geolocation.",
+  unknown: "Location permission status is unknown.",
+};
+
 const locationMessages: Record<GeolocationFailure, string> = {
   "permission-denied":
     "Location permission was denied. You can allow it in your browser settings, or enter coordinates manually.",
@@ -35,6 +47,8 @@ const locationMessages: Record<GeolocationFailure, string> = {
     "The location request timed out. Try again or enter coordinates manually.",
   unavailable:
     "Your browser could not provide a location. Try again or enter coordinates manually.",
+  unsupported:
+    "This browser does not support geolocation. Please enter coordinates manually.",
 };
 
 function formatCoordinate(value: number) {
@@ -53,6 +67,23 @@ export function SafetyMapPage({
   const [latitudeInput, setLatitudeInput] = useState("");
   const [longitudeInput, setLongitudeInput] = useState("");
   const [manualError, setManualError] = useState("");
+  const [permissionStatus, setPermissionStatus] = useState<
+    "granted" | "denied" | "prompt" | "unsupported" | "unknown"
+  >("unknown");
+
+  useEffect(() => {
+    let active = true;
+
+    void safetyIntegrations.geolocation.getPermissionStatus().then((status) => {
+      if (active) {
+        setPermissionStatus(status);
+      }
+    });
+
+    return () => {
+      active = false;
+    };
+  }, []);
 
   async function requestLocation() {
     setLocationState("requesting");
@@ -61,6 +92,8 @@ export function SafetyMapPage({
     setResources([]);
 
     try {
+      const permission = await safetyIntegrations.geolocation.requestPermission();
+      setPermissionStatus(permission);
       const result =
         await safetyIntegrations.geolocation.requestCurrentLocation();
       if (result.status !== "success") {
@@ -148,6 +181,30 @@ export function SafetyMapPage({
           provider or live location-based data is connected.
         </p>
       )}
+
+      <section aria-labelledby="permission-heading" className="integration-card">
+        <div className="integration-section-heading">
+          <span className="integration-icon integration-icon--amber">
+            <Icon name="shield" />
+          </span>
+          <div>
+            <h2 id="permission-heading">Location sharing</h2>
+            <p>
+              Sentinel uses location for safety guidance and emergency assistance.
+            </p>
+          </div>
+        </div>
+        <p className="integration-status" role="status">
+          Permission status: {permissionMessages[permissionStatus]}
+        </p>
+        <button
+          className="integration-secondary-button"
+          onClick={requestLocation}
+          type="button"
+        >
+          {permissionStatus === "granted" ? "Refresh location access" : "Enable location access"}
+        </button>
+      </section>
 
       <section aria-labelledby="location-heading" className="integration-card">
         <div className="integration-section-heading">

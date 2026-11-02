@@ -1635,6 +1635,31 @@ svg {
   color: #6f7c8d;
 }
 
+.sos-description-status,
+.sos-description-preview,
+.sos-voice-note {
+  margin: 6px 0 0;
+  color: #5d738f;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sos-description-status {
+  color: #34516f;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sos-description-preview {
+  color: #697c8c;
+}
+
+.sos-voice-note {
+  margin-top: -2px;
+  color: #71819a;
+}
+
 .sos-description-meta {
   display: flex;
   min-height: 17px;
@@ -1648,6 +1673,13 @@ svg {
 .sos-form-error {
   margin: 5px 0 0;
   color: #a24740;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sos-location-status {
+  margin: 0;
+  color: #5d738f;
   font-size: 10px;
   line-height: 1.5;
 }
@@ -3387,5 +3419,490 @@ svg {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+.sos-trigger-shell {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+  padding: 14px 0 4px;
+}
+
+.sos-trigger-text {
+  margin: 0;
+  color: #f2f4f7;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.sos-primary-button {
+  display: inline-flex;
+  width: min(100%, 260px);
+  aspect-ratio: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  border: 0;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #e64d46 0%, #c92f2d 100%);
+  box-shadow: 0 18px 32px rgb(201 50 43 / 28%);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--heading);
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease,
+    filter 130ms ease;
+}
+
+.sos-button-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: clamp(48px, 8vw, 72px);
+  height: clamp(48px, 8vw, 72px);
+}
+
+.sos-button-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.sos-button-label {
+  display: block;
+  font-size: clamp(22px, 4vw, 40px);
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  line-height: 0.9;
+}
+
+.sos-primary-button:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 20px 36px rgb(201 50 43 / 32%);
+  filter: saturate(1.05);
+}
+
+.sos-primary-button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.99);
+}
+
+.sos-primary-button:focus-visible,
+.sos-category:focus-visible,
+.sos-voice-button:focus-visible,
+.sos-cancel-button:focus-visible,
+.sos-close-button:focus-visible {
+  outline: 3px solid #f9b68d;
+  outline-offset: 3px;
+}
+
+.sos-trigger-copy {
+  margin: 0;
+  color: #758194;
+  font-size: 11px;
+  line-height: 1.6;
+  text-align: center;
+}
+
+.sos-modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgb(15 24 38 / 42%);
+}
+
+.sos-modal {
+  display: grid;
+  width: min(100%, 560px);
+  gap: 18px;
+  max-height: min(92vh, 760px);
+  overflow-y: auto;
+  padding: clamp(18px, 3vw, 28px);
+  border: 1px solid #e9edf2;
+  border-radius: 18px;
+  background: #fff;
+  box-shadow: 0 28px 64px rgb(16 24 39 / 18%);
+}
+
+.sos-modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.sos-modal-header h2 {
+  margin: 4px 0 0;
+  color: #23314a;
+  font-family: var(--heading);
+  font-size: clamp(22px, 5vw, 30px);
+  letter-spacing: -0.8px;
+}
+
+.sos-close-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 10px;
+  border: 1px solid #e4e9ee;
+  border-radius: 999px;
+  background: #fff;
+  color: #4d5d74;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.sos-close-button svg {
+  width: 12px;
+  height: 12px;
+}
+
+.sos-modal-subtitle {
+  margin: -8px 0 0;
+  color: #788392;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.sos-countdown-block {
+  display: grid;
+  gap: 8px;
+  padding: 12px 14px;
+  border: 1px solid #f1dccd;
+  border-radius: 12px;
+  background: #fff8f4;
+  text-align: center;
+}
+
+.sos-countdown-label {
+  color: #7f604e;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.sos-countdown-block strong {
+  color: #c73f3a;
+  font-family: var(--heading);
+  font-size: clamp(40px, 12vw, 72px);
+  line-height: 1;
+}
+
+.sos-category-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.sos-category {
+  display: flex;
+  min-height: 92px;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid #e7ebf0;
+  border-radius: 12px;
+  background: #fff;
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  transition:
+    border-color 130ms ease,
+    box-shadow 130ms ease,
+    background 130ms ease,
+    transform 130ms ease;
+}
+
+.sos-category:hover {
+  border-color: #d7c3aa;
+  transform: translateY(-1px);
+}
+
+.sos-category--selected {
+  border-color: #ca7d5f;
+  background: #fffaf5;
+  box-shadow: 0 0 0 3px rgb(202 125 95 / 12%);
+}
+
+.sos-category-icon {
+  display: grid;
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 12px;
+}
+
+.sos-category-icon svg {
+  width: 22px;
+  height: 22px;
+}
+
+.sos-category-icon--medical {
+  background: #f8eeee;
+  color: #ad655f;
+}
+
+.sos-category-icon--police {
+  background: #eff3fb;
+  color: #6684b1;
+}
+
+.sos-category-icon--fire {
+  background: #fbf0e8;
+  color: #c4774d;
+}
+
+.sos-category-icon--help {
+  background: #f2f3f7;
+  color: #778198;
+}
+
+.sos-category-copy {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sos-category-copy strong {
+  color: #2b3a50;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.sos-category-copy span {
+  color: #7d8795;
+  font-size: 10px;
+  line-height: 1.4;
+}
+
+.sos-text-field {
+  display: grid;
+  gap: 8px;
+}
+
+.sos-text-field label {
+  color: #2b3a50;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.sos-text-field textarea {
+  width: 100%;
+  min-height: 100px;
+  resize: vertical;
+  padding: 12px 13px;
+  border: 1px solid #e0e6eb;
+  border-radius: 10px;
+  background: #fff;
+  color: #263448;
+  font: inherit;
+  font-size: 11px;
+  line-height: 1.6;
+}
+
+.sos-text-field textarea:focus {
+  border-color: #d99a78;
+  box-shadow: 0 0 0 3px rgb(217 154 120 / 14%);
+  outline: none;
+}
+
+.sos-actions-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.sos-voice-button,
+.sos-cancel-button {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 13px;
+  border-radius: 10px;
+  cursor: pointer;
+  font-size: 11px;
+  font-weight: 700;
+  transition:
+    transform 130ms ease,
+    border-color 130ms ease,
+    background 130ms ease;
+}
+
+.sos-voice-button {
+  border: 1px solid #c9d7e8;
+  background: #f4f8fd;
+  color: #496685;
+}
+
+.sos-voice-button:hover:not(:disabled),
+.sos-cancel-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.sos-cancel-button {
+  border: 1px solid #e7d5cf;
+  background: #fff8f7;
+  color: #8a4d45;
+}
+
+.sos-form-error {
+  margin: 0;
+  color: #a24740;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sos-cancelled-banner {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid #f0d7c5;
+  border-radius: 9px;
+  background: #fff9f5;
+  color: #7d5849;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.sos-outcome {
+  padding: 13px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-size: 10px;
+  line-height: 1.65;
+}
+
+.sos-outcome--warning {
+  border-color: #efc9c2;
+  background: #fff8f7;
+  color: #8e4841;
+}
+
+.sos-outcome--error {
+  border-color: #e7bdb8;
+  background: #fff7f6;
+  color: #873f39;
+}
+
+.sos-outcome--confirmed {
+  border-color: #dce9df;
+  background: #f6fbf7;
+  color: #52735d;
+}
+
+.sos-submission-pending {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid #e2e7ee;
+  border-radius: 8px;
+  background: #f7f9fc;
+  color: #566579;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
+.sos-submission-pending strong {
+  display: block;
+  color: #39516f;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+}
+
+.sos-submission-pending p {
+  margin: 4px 0 0;
+  color: #6a7c8f;
+}
+
+.sos-description-state,
+.sos-description-summary {
+  margin: 6px 0 0;
+  color: #5d738f;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.sos-description-state {
+  color: #34516f;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.sos-status-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid #dfe5ee;
+  border-top-color: #bf5b4c;
+  border-radius: 50%;
+  animation: sos-spin 700ms linear infinite;
+}
+
+@keyframes sos-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.sos-confirmation-header {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sos-confirmation-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #dfeee4;
+  color: #407251;
+}
+
+.sos-confirmation-icon svg {
+  width: 12px;
+  height: 12px;
+}
+
+.sos-confirmation-message {
+  margin-top: 6px;
+}
+
+@media (max-width: 640px) {
+  .sos-page {
+    width: 100%;
+  }
+
+  .sos-modal-overlay {
+    padding: 12px;
+  }
+
+  .sos-category-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .sos-actions-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sos-voice-button,
+  .sos-cancel-button {
+    width: 100%;
   }
 }

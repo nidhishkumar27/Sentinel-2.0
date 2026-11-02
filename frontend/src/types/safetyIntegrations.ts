@@ -17,14 +17,46 @@ export type UserLocation = Coordinates & {
 export type GeolocationFailure =
   | "permission-denied"
   | "timeout"
-  | "unavailable";
+  | "unavailable"
+  | "unsupported";
+
+export type LocationPermissionStatus =
+  | "granted"
+  | "denied"
+  | "prompt"
+  | "unsupported"
+  | "unknown";
+
+export type LocationFreshness =
+  | "fresh"
+  | "stale"
+  | "acquiring"
+  | "unavailable"
+  | "permission-denied";
+
+export type LocationSource = "browser" | "cache" | "manual" | "unknown";
+
+export type GeolocationSnapshot = UserLocation & {
+  freshness: LocationFreshness;
+  source: LocationSource;
+  isCached: boolean;
+  acquiredAt: string;
+  permissionStatus: LocationPermissionStatus;
+};
 
 export type GeolocationResult =
-  | { status: "success"; location: UserLocation }
+  | { status: "success"; location: GeolocationSnapshot }
   | { status: GeolocationFailure };
 
 export interface GeolocationService {
   requestCurrentLocation(): Promise<GeolocationResult>;
+  getPermissionStatus(): Promise<LocationPermissionStatus>;
+  getLatestLocation(): GeolocationSnapshot | null;
+  requestPermission(): Promise<LocationPermissionStatus>;
+  watchLocation(
+    callback: (snapshot: GeolocationSnapshot) => void,
+  ): () => void;
+  clearWatch(watcherId?: number): void;
 }
 
 export type SafetyResourceCategory =

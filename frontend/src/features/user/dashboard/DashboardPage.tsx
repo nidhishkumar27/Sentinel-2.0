@@ -11,6 +11,8 @@ import {
 } from "./demoDashboardData";
 import type {
   AlertFeed,
+  GeolocationSnapshot,
+  LocationPermissionStatus,
   ServiceFailure,
   SafetyAlert,
 } from "../../../types/safetyIntegrations";
@@ -217,6 +219,106 @@ function QuickAction({
   );
 }
 
+function LocationStatusCard() {
+  const [permissionStatus, setPermissionStatus] =
+    useState<LocationPermissionStatus>("unknown");
+  const [latestLocation, setLatestLocation] = useState<GeolocationSnapshot | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    async function hydrate() {
+      const status = await safetyIntegrations.geolocation.getPermissionStatus();
+      if (!active) {
+        return;
+      }
+      setPermissionStatus(status);
+      setLatestLocation(safetyIntegrations.geolocation.getLatestLocation());
+    }
+
+    void hydrate();
+    const stopWatching = safetyIntegrations.geolocation.watchLocation((snapshot) => {
+      if (active) {
+        setLatestLocation(snapshot);
+      }
+    });
+
+    return () => {
+      active = false;
+      stopWatching();
+    };
+  }, []);
+
+  async function enableLocation() {
+    setRefreshing(true);
+    const status = await safetyIntegrations.geolocation.requestPermission();
+    setPermissionStatus(status);
+
+    const result = await safetyIntegrations.geolocation.requestCurrentLocation();
+    if (result.status === "success") {
+      setLatestLocation(result.location);
+    }
+
+    setRefreshing(false);
+  }
+
+  const permissionLabel =
+    permissionStatus === "granted"
+      ? "Location access enabled."
+      : permissionStatus === "denied"
+        ? "Location permission required."
+        : permissionStatus === "unsupported"
+          ? "This browser does not support location access."
+          : "Location access status is unknown.";
+
+  const freshnessText =
+    latestLocation?.freshness === "fresh"
+      ? "Location available."
+      : latestLocation?.freshness === "stale"
+        ? "Location may be outdated."
+        : latestLocation?.freshness === "permission-denied"
+          ? "Location permission was denied."
+          : latestLocation?.freshness === "acquiring"
+            ? "Updating location…"
+            : "Location unavailable.";
+
+  return (
+    <section aria-labelledby="location-status-heading" className="integration-card">
+      <div className="integration-section-heading">
+        <span className="integration-icon integration-icon--blue">
+          <Icon name="map" />
+        </span>
+        <div>
+          <h2 id="location-status-heading">Location status</h2>
+          <p>Keep your latest position ready for emergency assistance.</p>
+        </div>
+      </div>
+      <p className="integration-status" role="status">
+        {permissionLabel}
+      </p>
+      <p className="integration-status" role="status">
+        {freshnessText}
+        {latestLocation?.accuracyMeters != null &&
+          ` Accuracy: ${latestLocation.accuracyMeters.toFixed(0)}m.`}
+        {latestLocation?.capturedAt &&
+          ` Last update: ${new Date(latestLocation.capturedAt).toLocaleTimeString([], {
+            hour: "numeric",
+            minute: "2-digit",
+          })}.`}
+      </p>
+      <button
+        className="integration-secondary-button"
+        disabled={refreshing}
+        onClick={() => void enableLocation()}
+        type="button"
+      >
+        {refreshing ? "Updating location…" : permissionStatus === "granted" ? "Refresh location" : "Enable location access"}
+      </button>
+    </section>
+  );
+}
+
 export function DashboardPage() {
   const resources = integrationConfig.demoEnabled
     ? demoDashboardData.resources
@@ -315,6 +417,8 @@ export function DashboardPage() {
           </span>
         </div>
       </section>
+
+      <LocationStatusCard />
 
       <div aria-label="Weather and safety alerts" className="dashboard-alert-grid">
         <DashboardAlertSection

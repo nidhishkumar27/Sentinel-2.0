@@ -4,4 +4,10 @@ export const unavailableIncidentService: IncidentService = {
   async submitIncident(_request) {
     return { status: "unavailable" };
   },
+  async updateIncidentLocation(_request) {
+    return { status: "unavailable" };
+  },
+  async updateIncidentDescription(_request) {
+    return { status: "unavailable" };
+  },
 };
