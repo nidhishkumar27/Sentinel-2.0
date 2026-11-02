@@ -99,10 +99,87 @@ export type SafetyAlert = {
 
 export type AlertFreshness = "fresh" | "stale" | "demo";
 
+export type WeatherSeverity = "LOW" | "MODERATE" | "HIGH" | "SEVERE";
+
+export type NaturalHazardCategory =
+  | "EARTHQUAKE"
+  | "FLOOD"
+  | "LANDSLIDE"
+  | "CYCLONE"
+  | "OTHER";
+
+export type NaturalHazardStatus = "ACTIVE" | "EXPIRED" | "UPDATED" | "INFORMATIONAL";
+
+export type NaturalHazardRelevance = "local" | "regional" | "national" | "unknown";
+
+export type SafetyHazardAlert = {
+  id: string;
+  title: string;
+  category: NaturalHazardCategory;
+  severity: WeatherSeverity;
+  status: NaturalHazardStatus;
+  location: string;
+  description: string;
+  source: string;
+  startsAt?: string;
+  endsAt?: string;
+  lastUpdatedAt: string;
+  recommendedPrecautions: string[];
+  magnitude?: number | null;
+  depthKm?: number | null;
+  distanceKm?: number | null;
+  river?: string;
+  relevance?: NaturalHazardRelevance;
+};
+
+export type WeatherWarning = {
+  id: string;
+  title: string;
+  severity: WeatherSeverity;
+  category: "heavy-rain" | "thunderstorm" | "strong-wind" | "extreme-heat" | "extreme-cold" | "fog";
+  location: string;
+  startsAt?: string;
+  endsAt?: string;
+  description: string;
+  source: string;
+  precautions: string[];
+};
+
+export type WeatherForecastDay = {
+  date: string;
+  condition: string;
+  icon: string;
+  minC: number | null;
+  maxC: number | null;
+  rainProbability: number | null;
+};
+
+export type WeatherCurrentCondition = {
+  locationLabel: string;
+  condition: string;
+  icon: string;
+  temperatureC: number | null;
+  feelsLikeC: number | null;
+  humidityPercent: number | null;
+  windKph: number | null;
+  rainProbability: number | null;
+  observedAt: string;
+};
+
+export type WeatherOverview = {
+  locationLabel: string;
+  updatedAt: string;
+  current: WeatherCurrentCondition | null;
+  forecast: WeatherForecastDay[];
+  warnings: WeatherWarning[];
+};
+
 export type AlertFeed = {
   alerts: SafetyAlert[];
   fetchedAt: string;
   freshness: AlertFreshness;
+  weather?: WeatherOverview | null;
+  safetyAlerts?: SafetyHazardAlert[];
 };
 
 export interface AlertService {

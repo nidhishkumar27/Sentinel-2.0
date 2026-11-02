@@ -1197,6 +1197,350 @@ svg {
   color: #74634f;
 }
 
+.weather-page-stack {
+  display: grid;
+  gap: 18px;
+}
+
+.weather-overview-panel,
+.weather-panel,
+.weather-warning-card {
+  min-width: 0;
+  padding: 18px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fff 0%, #f7fbff 100%);
+}
+
+.weather-overview-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.weather-overview-header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-family: var(--heading);
+  font-size: 18px;
+  letter-spacing: -0.5px;
+}
+
+.weather-updated {
+  color: #7e8a9b;
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.weather-current-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.weather-current-icon,
+.weather-forecast-icon {
+  display: grid;
+  place-items: center;
+  font-size: clamp(28px, 3vw, 40px);
+}
+
+.weather-current-copy {
+  display: grid;
+  gap: 3px;
+}
+
+.weather-current-copy strong {
+  color: var(--ink);
+  font-family: var(--heading);
+  font-size: clamp(28px, 4vw, 46px);
+  letter-spacing: -2px;
+  line-height: 1;
+}
+
+.weather-current-copy span {
+  color: #647286;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.weather-metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 18px;
+}
+
+.weather-metric-grid div {
+  min-width: 0;
+  padding: 12px 10px;
+  border: 1px solid #edf1f4;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.weather-metric-grid dt {
+  color: #8692a1;
+  font-size: 9px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.weather-metric-grid dd {
+  margin: 7px 0 0;
+  color: #263448;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.weather-panel {
+  background: linear-gradient(180deg, #f8fbff 0%, #fff 100%);
+}
+
+.section-heading--compact {
+  margin: 0 0 14px;
+}
+
+.weather-forecast-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 12px;
+}
+
+.weather-forecast-item {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  padding: 14px 12px;
+  border: 1px solid #ebf0f5;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.weather-forecast-item strong {
+  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.weather-forecast-item span,
+.weather-forecast-item small {
+  color: #667385;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.weather-forecast-temps {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: #263448;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.weather-empty-note {
+  margin: 0;
+  color: #748090;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.weather-warning-list {
+  display: grid;
+  gap: 12px;
+}
+
+.weather-warning-card {
+  background: linear-gradient(180deg, #fffdfb 0%, #fff 100%);
+}
+
+.weather-warning-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.weather-warning-label {
+  margin: 0;
+  color: #263448;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.weather-severity {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 26px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: 0.75px;
+}
+
+.weather-severity--low {
+  background: #edf7ef;
+  color: #467c53;
+}
+
+.weather-severity--moderate {
+  background: #fff4db;
+  color: #8d6a19;
+}
+
+.weather-severity--high {
+  background: #fff0df;
+  color: #a9612c;
+}
+
+.weather-severity--severe {
+  background: #fde7e7;
+  color: #8a3033;
+}
+
+.weather-warning-meta {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.weather-warning-meta div {
+  min-width: 0;
+  padding: 10px 11px;
+  border: 1px solid #edf0f2;
+  border-radius: 10px;
+  background: #fff;
+}
+
+.weather-warning-meta dt {
+  color: #8a95a3;
+  font-size: 8px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.weather-warning-meta dd {
+  margin: 6px 0 0;
+  color: #263448;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.weather-warning-description {
+  margin: 12px 0 0;
+  color: #5a6b7d;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.weather-warning-precautions {
+  margin-top: 14px;
+}
+
+.weather-warning-precautions strong {
+  display: block;
+  margin-bottom: 8px;
+  color: #263448;
+  font-size: 10px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.weather-warning-precautions ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #51627b;
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+.safety-alert-tag {
+  display: inline-flex;
+  align-items: center;
+  min-height: 26px;
+  padding: 0 9px;
+  border: 1px solid #dfeaf7;
+  border-radius: 999px;
+  background: #edf5fb;
+  color: #3e5774;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.safety-hazard-details {
+  margin-top: 14px;
+  border-top: 1px solid #edf0f2;
+  padding-top: 12px;
+}
+
+.safety-hazard-details summary {
+  color: #4f6278;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.safety-hazard-body {
+  display: grid;
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.safety-hazard-body p {
+  margin: 0;
+  color: #5b6e80;
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+.safety-hazard-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+.safety-hazard-meta div {
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid #edf0f2;
+  border-radius: 8px;
+  background: #fafbfd;
+}
+
+.safety-hazard-meta dt {
+  color: #8993a0;
+  font-size: 8px;
+  letter-spacing: 0.7px;
+  text-transform: uppercase;
+}
+
+.safety-hazard-meta dd {
+  margin: 7px 0 0;
+  color: #263448;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.safety-hazard-timeframe {
+  color: #647386;
+  font-size: 10px;
+  line-height: 1.6;
+}
+
 .location-result {
   margin-top: 17px;
   padding-top: 16px;

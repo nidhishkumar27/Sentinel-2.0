@@ -595,6 +595,134 @@ describe("frontend integration readiness", () => {
     ).toBe("page");
   });
 
+  it("renders the current weather overview, seven-day forecast and active weather warnings", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [
+          {
+            id: "weather-alert-1",
+            category: "weather",
+            title: "Heavy rain advisory",
+            message: "Flooding risk in coastal roads.",
+            timestamp: "2025-01-01T12:00:00.000Z",
+            source: "Test weather provider",
+          },
+        ],
+        fetchedAt: "2025-01-01T12:00:00.000Z",
+        freshness: "fresh",
+        weather: {
+          locationLabel: "Wellington",
+          updatedAt: "2025-01-01T12:00:00.000Z",
+          current: {
+            locationLabel: "Wellington",
+            condition: "Heavy rain",
+            icon: "rain",
+            temperatureC: 18,
+            feelsLikeC: 17,
+            humidityPercent: 88,
+            windKph: 31,
+            rainProbability: 76,
+            observedAt: "2025-01-01T12:00:00.000Z",
+          },
+          forecast: [
+            { date: "2025-01-01", condition: "Heavy rain", icon: "rain", minC: 15, maxC: 19, rainProbability: 80 },
+            { date: "2025-01-02", condition: "Thunderstorm", icon: "storm", minC: 14, maxC: 18, rainProbability: 90 },
+            { date: "2025-01-03", condition: "Sunny", icon: "sun", minC: 16, maxC: 22, rainProbability: 10 },
+          ],
+          warnings: [
+            {
+              id: "warning-rain",
+              title: "Heavy rainfall warning",
+              severity: "HIGH",
+              category: "heavy-rain",
+              location: "Wellington",
+              startsAt: "2025-01-01T10:00:00.000Z",
+              endsAt: "2025-01-02T04:00:00.000Z",
+              description: "Intense rainfall may lead to flash flooding near low-lying areas.",
+              source: "National weather service",
+              precautions: ["Avoid flooded roads.", "Secure loose outdoor items."],
+            },
+          ],
+        },
+      },
+    });
+
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText("Current weather")).toBeTruthy();
+    expect(screen.getByRole("heading", { name: "Wellington" })).toBeTruthy();
+    expect(screen.getAllByText("18°C").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Heavy rain").length).toBeGreaterThan(0);
+    expect(screen.getByText("7-day forecast")).toBeTruthy();
+    expect(screen.getByText("Heavy rainfall warning")).toBeTruthy();
+    expect(screen.getByText("HIGH")).toBeTruthy();
+    expect(screen.getByText("Recommended precautions")).toBeTruthy();
+    expect(screen.getByText("Avoid flooded roads.")).toBeTruthy();
+  });
+
+  it("renders all forecast days when fewer than seven are returned", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [],
+        fetchedAt: "2025-01-01T12:00:00.000Z",
+        freshness: "fresh",
+        weather: {
+          locationLabel: "Lisbon",
+          updatedAt: "2025-01-01T12:00:00.000Z",
+          current: null,
+          forecast: [
+            { date: "2025-01-01", condition: "Cloudy", icon: "cloud", minC: 10, maxC: 15, rainProbability: 20 },
+            { date: "2025-01-02", condition: "Sunny", icon: "sun", minC: 11, maxC: 17, rainProbability: 5 },
+          ],
+          warnings: [],
+        },
+      },
+    });
+
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText("7-day forecast")).toBeTruthy();
+    expect(screen.getByText("Cloudy")).toBeTruthy();
+    expect(screen.getByText("Sunny")).toBeTruthy();
+    expect(screen.queryByText("No forecast data is available for this location.")).toBeNull();
+  });
+
+  it("shows a loading state while the weather alert service is still resolving", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockImplementation(
+      () => new Promise(() => undefined),
+    );
+
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(screen.getByText("Loading alerts…")).toBeTruthy();
+  });
+
+  it("shows an error state when the weather alert service fails", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockRejectedValue(new Error("Network failed"));
+
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Alerts could not be loaded" })).toBeTruthy();
+  });
+
+  it("shows a clear unavailable state when the weather service returns no weather data", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [],
+        fetchedAt: "2025-01-01T12:00:00.000Z",
+        freshness: "fresh",
+      },
+    });
+
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByRole("heading", { name: "Weather data unavailable" })).toBeTruthy();
+    expect(screen.getByText(/No current weather conditions, forecast or warnings/i)).toBeTruthy();
+  });
+
   it("shows an explicit timeout state for safety-resource searches", async () => {
     vi.spyOn(safetyIntegrations.resources, "findResourcesNear").mockResolvedValue({
       status: "timeout",
@@ -800,5 +928,136 @@ describe("frontend integration readiness", () => {
         await screen.findByRole("heading", { name: route.heading }),
       ).toBeTruthy();
     }
+  });
+
+  it("renders natural hazard alerts with filtering and severity sorting", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [],
+        fetchedAt: new Date().toISOString(),
+        freshness: "demo",
+        safetyAlerts: [
+          {
+            id: "hazard-earthquake",
+            title: "Earthquake advisory",
+            category: "EARTHQUAKE",
+            severity: "HIGH",
+            status: "UPDATED",
+            location: "Fault line region",
+            description: "Seismic activity was reported near the central fault line.",
+            source: "National earthquake office",
+            lastUpdatedAt: new Date().toISOString(),
+            magnitude: 6.4,
+            depthKm: 31,
+            recommendedPrecautions: ["Take cover immediately if indoors."],
+            relevance: "regional",
+          },
+          {
+            id: "hazard-flood",
+            title: "River overflow advisory",
+            category: "FLOOD",
+            severity: "MODERATE",
+            status: "ACTIVE",
+            location: "Centennial Valley",
+            description: "Flooding is expected near the river corridor after heavy rain.",
+            source: "Local authority",
+            lastUpdatedAt: new Date().toISOString(),
+            river: "Centennial River",
+            recommendedPrecautions: ["Avoid flooded roads."],
+            relevance: "local",
+          },
+          {
+            id: "hazard-cyclone",
+            title: "Cyclone warning",
+            category: "CYCLONE",
+            severity: "SEVERE",
+            status: "ACTIVE",
+            location: "Coastal belt",
+            description: "Strong gusts and intense rain are expected along the coast.",
+            source: "Storm centre",
+            lastUpdatedAt: new Date().toISOString(),
+            recommendedPrecautions: ["Secure outdoor items and avoid the shoreline."],
+            relevance: "regional",
+          },
+        ],
+      },
+    });
+
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText("Earthquake advisory")).toBeTruthy();
+    expect(screen.getByText("Cyclone warning")).toBeTruthy();
+
+    await user.click(screen.getByRole("button", { name: "Flood" }));
+    expect(screen.getByText("River overflow advisory")).toBeTruthy();
+    expect(screen.queryByText("Earthquake advisory")).toBeNull();
+  });
+
+  it("shows manual location guidance and a denied-permission notice when geolocation is blocked", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [],
+        fetchedAt: new Date().toISOString(),
+        freshness: "demo",
+        safetyAlerts: [
+          {
+            id: "hazard-expired",
+            title: "Expired landslide note",
+            category: "LANDSLIDE",
+            severity: "LOW",
+            status: "EXPIRED",
+            location: "North ridge",
+            description: "Official advisory is no longer active.",
+            source: "District office",
+            lastUpdatedAt: new Date().toISOString(),
+            recommendedPrecautions: ["Avoid unstable slopes."],
+            relevance: "local",
+          },
+        ],
+      },
+    });
+    vi.spyOn(safetyIntegrations.geolocation, "getPermissionStatus").mockResolvedValue("denied");
+    const user = userEvent.setup();
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText(/Location access denied/i)).toBeTruthy();
+
+    const input = screen.getByLabelText("Manual safety alert location");
+    await user.clear(input);
+    await user.type(input, "Pahalgam");
+
+    expect(screen.getAllByText(/Selected location:/i).length).toBeGreaterThan(0);
+    expect(screen.getByDisplayValue("Pahalgam")).toBeTruthy();
+    expect(screen.getByText("EXPIRED")).toBeTruthy();
+  });
+
+  it("shows an empty safety state when no hazard feed is available", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "success",
+      value: {
+        alerts: [],
+        fetchedAt: new Date().toISOString(),
+        freshness: "demo",
+        safetyAlerts: [],
+      },
+    });
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText("Safety Alerts")).toBeTruthy();
+    expect(
+      screen.getByText("No natural hazard alerts are currently available for the selected safety category."),
+    ).toBeTruthy();
+  });
+
+  it("shows an unavailable-state message when the safety alert service cannot respond", async () => {
+    vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
+      status: "unavailable",
+    });
+    renderWithMemoryRouter(<AlertsPage />);
+
+    expect(await screen.findByText("Alerts unavailable")).toBeTruthy();
   });
 });
