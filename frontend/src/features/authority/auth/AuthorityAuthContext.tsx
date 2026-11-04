@@ -36,8 +36,16 @@ export function AuthorityAuthProvider({ children }: { children: ReactNode }) {
   // the http client fires this when a refresh fails
   useEffect(() => {
     const onLogout = () => setUser(null);
+    const onRegistered = (event: Event) => {
+      const user = (event as CustomEvent<AuthUser>).detail;
+      if (user?.role === 'authority') setUser(user);
+    };
     window.addEventListener('authority:logout', onLogout);
-    return () => window.removeEventListener('authority:logout', onLogout);
+    window.addEventListener('authority:registered', onRegistered);
+    return () => {
+      window.removeEventListener('authority:logout', onLogout);
+      window.removeEventListener('authority:registered', onRegistered);
+    };
   }, []);
 
   const login = useCallback(async (email: string, password: string) => {

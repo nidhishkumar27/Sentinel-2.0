@@ -1,17 +1,5 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
-import AuthorityRoutes from './features/authority/routes';
+import { AppRouter } from "./app/router";
 
-function App() {
-  return (
-    <BrowserRouter>
-      <Routes>
-        <Route
-          path="/authority/*"
-          element={<AuthorityRoutes />}
-        />
-      </Routes>
-    </BrowserRouter>
-  );
+export default function App() {
+  return <AppRouter />;
 }
-
-export default App;

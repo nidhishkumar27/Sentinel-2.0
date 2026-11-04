@@ -2,7 +2,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api } from '../../../services/authority/api';
-import { errorMessage } from '../../../services/authority/http';
+import { errorMessage, session } from '../../../services/authority/http';
 
 const departments = [
   { value: 'POLICE', label: 'Police Department' },
@@ -50,7 +50,7 @@ export default function AuthorityRegisterPage() {
     setBusy(true);
 
     try {
-      await api.register({
+      const { data } = await api.register({
         ...form,
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
@@ -58,10 +58,10 @@ export default function AuthorityRegisterPage() {
         badgeId: form.badgeId.trim() || undefined,
       });
 
-      navigate('/authority/login', {
-        replace: true,
-        state: { registered: true },
-      });
+      if (data.user.role !== 'authority') throw new Error('This account is not an authority account.');
+      session.set({ accessToken: data.accessToken, refreshToken: data.refreshToken, user: data.user });
+      window.dispatchEvent(new CustomEvent('authority:registered', { detail: data.user }));
+      navigate('/authority', { replace: true });
     } catch (err) {
       setError(errorMessage(err));
     } finally {
