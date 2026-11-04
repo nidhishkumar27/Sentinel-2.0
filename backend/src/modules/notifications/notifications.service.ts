@@ -1,3 +1,5 @@
+import axios from 'axios';
+import { env } from '../../config/env';
 import { emitToAuthorities, emitToUser } from '../../sockets';
 import { logger } from '../../utils/logger';
 import { EmergencyContact } from '../emergency-contacts/contact.model';
@@ -43,8 +45,8 @@ export async function notifyAuthorities(p: Payload) {
 /**
  * Notify emergency contacts and report what REALLY happened, so the UI never claims
  * "contacts notified" when nothing was delivered.
- * - Contact is also a Sentinel user  → in-app notification (delivered)
- * - Otherwise → SMS via sendSms(); the stub returns 'unavailable' until a provider is wired up.
+ * Registered contacts get an in-app notification as well as an SMS. Every saved contact
+ * receives an SMS attempt, whether or not they have a Sentinel account.
  */
 export async function dispatchToContacts(userId: unknown, userName: string, p: Payload): Promise<ContactNotificationSummary> {
   const contacts = await EmergencyContact.find({ user: userId });
@@ -56,25 +58,53 @@ export async function dispatchToContacts(userId: unknown, userName: string, p: P
   let inApp = 0;
   let sms = 0;
   let unavailable = 0;
+  let notifiedContacts = 0;
   for (const c of contacts) {
     const uid = byPhone.get(c.phone);
+    let inAppDelivered = false;
     if (uid) {
-      await notifyUser(uid, p).then(() => inApp++).catch(() => undefined);
-      continue;
+      inAppDelivered = await notifyUser(uid, p).then(() => { inApp++; return true; }).catch(() => false);
     }
     const result = await sendSms(c.phone, `${userName}: ${p.body}`);
     if (result === 'sent') sms++;
     else if (result === 'unavailable') unavailable++;
+    if (inAppDelivered || result === 'sent') notifiedContacts++;
   }
 
-  const delivered = inApp + sms;
   const status: ContactNotificationStatus =
-    delivered === contacts.length ? 'sent' : delivered > 0 ? 'partial' : unavailable > 0 ? 'unavailable' : 'failed';
+    notifiedContacts === contacts.length ? 'sent' : notifiedContacts > 0 ? 'partial' : unavailable > 0 ? 'unavailable' : 'failed';
   return { status, total: contacts.length, inApp, sms };
 }
 
 async function sendSms(to: string, message: string): Promise<'sent' | 'unavailable' | 'failed'> {
-  // TODO: integrate an SMS provider (Twilio / MSG91 / Fast2SMS) and return 'sent' on confirmed delivery.
-  logger.info(`[SMS provider not configured] to=${to} msg="${message}"`);
-  return 'unavailable';
+  const { FAST2SMS_API_KEY } = env;
+  if (!FAST2SMS_API_KEY) {
+    logger.warn('Fast2SMS is not configured; emergency contact SMS was not sent');
+    return 'unavailable';
+  }
+  const digits = to.replace(/\D/g, '');
+  const recipient = digits.startsWith('91') && digits.length === 12 ? digits.slice(2) : digits;
+  if (!/^\d{10}$/.test(recipient)) {
+    logger.warn('Fast2SMS requires an Indian 10-digit emergency contact number (optionally prefixed with +91)');
+    return 'failed';
+  }
+
+  const url = 'https://www.fast2sms.com/dev/bulkV2';
+  try {
+    const response = await axios.post(url, { route: 'q', message, numbers: recipient }, {
+      headers: { Authorization: FAST2SMS_API_KEY, Accept: 'application/json', 'Content-Type': 'application/json' },
+      timeout: 10000,
+    });
+    if (response.data?.return !== true) {
+      logger.warn('Fast2SMS did not accept emergency contact SMS', { statusCode: response.data?.status_code });
+      return 'failed';
+    }
+    return 'sent';
+  } catch (error: any) {
+    logger.warn('Fast2SMS could not accept emergency contact SMS', {
+      status: error?.response?.status,
+      statusCode: error?.response?.data?.status_code,
+    });
+    return 'failed';
+  }
 }

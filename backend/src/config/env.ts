@@ -28,7 +28,10 @@ const schema = z.object({
   VAPID_PRIVATE_KEY: z.string().default(''),
   VAPID_SUBJECT: z.string().default('mailto:admin@example.com'),
 
+  FAST2SMS_API_KEY: z.string().default(''),
+
   WEATHER_API_URL: z.string().default('https://api.open-meteo.com/v1/forecast'),
+  WEATHER_OFFICIAL_ALERTS_URL: z.string().default('https://cap-sources.s3.amazonaws.com/in-imd-en/rss.xml'),
   WEATHER_CACHE_MIN: z.coerce.number().default(15),
   WEATHER_STALE_MIN: z.coerce.number().default(120),
 });

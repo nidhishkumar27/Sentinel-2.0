@@ -15,7 +15,6 @@ import {
 import { Incident } from '../incidents/incident.model';
 import {
   getIncidentWeather,
-  getWeather,
 } from './weather.service';
 
 const router = Router();
@@ -40,7 +39,9 @@ router.get(
 
     res.json({
       success: true,
-      data: await getWeather(lat, lng),
+      // The user alerts page also needs the hourly/daily forecast risks returned
+      // by the shared forecast provider, not only current conditions.
+      data: await getIncidentWeather('user-location', lat, lng),
     });
   }),
 );

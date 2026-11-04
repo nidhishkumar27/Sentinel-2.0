@@ -18,7 +18,7 @@ beforeAll(async () => {
   await Promise.all(Object.values(mongoose.models).map((m) => m.init()));
   const pw = 'Passw0rd!123';
   user = (await request(app).post(`${api}/auth/register`).send({ name: 'Asha', email: 'a@t.dev', phone: '+911111111111', password: pw })).body.data;
-  officer = (await request(app).post(`${api}/auth/register`).send({ name: 'Officer', email: 'o@t.dev', phone: '+913333333333', password: pw, inviteCode: 'test-invite' })).body.data;
+  officer = (await request(app).post(`${api}/auth/register`).send({ name: 'Officer', email: 'o@t.dev', phone: '+913333333333', password: pw, inviteCode: 'test-invite', department: 'POLICE' })).body.data;
 });
 afterAll(async () => {
   await mongoose.disconnect();

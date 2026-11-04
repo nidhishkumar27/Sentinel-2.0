@@ -78,7 +78,7 @@ function afterCreate(incident: any, user: UserDocument) {
 
   dispatchToContacts(user._id, user.name, {
     title: 'Emergency alert',
-    body: `${user.name} has triggered an emergency (${incident.category}).`,
+    body: `${user.name} triggered an SOS for ${incident.category}. Reference: ${incident.reference}. Location: ${incident.address ?? `${incident.location.coordinates[1]}, ${incident.location.coordinates[0]}`}.`,
     type: 'sos',
     data: { incidentId: incident._id },
   })

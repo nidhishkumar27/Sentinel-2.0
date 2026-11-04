@@ -185,6 +185,127 @@ interface IncidentWeatherSnapshot {
   fetchedAt: string;
 }
 
+type OfficialWarning = {
+  id: string;
+  title: string;
+  severity: 'Extreme' | 'Severe' | 'Moderate' | 'Minor' | 'Unknown';
+  description: string;
+  source: string;
+  startsAt?: string;
+  endsAt?: string;
+  precautions: string[];
+};
+type OfficialWarningResult = {
+  status: 'available' | 'unavailable';
+  items: OfficialWarning[];
+  message: string;
+};
+
+const officialWarningCache = new Map<string, { value: OfficialWarningResult; at: number }>();
+
+function xmlValue(xml: string, name: string): string {
+  const escaped = name;
+  const match = xml.match(new RegExp(`<(?:[\\w.-]+:)?${escaped}\\b[^>]*>([\\s\\S]*?)<\\/(?:[\\w.-]+:)?${escaped}\\s*>`, 'i'));
+  if (!match) return '';
+  return decodeXml(match[1].replace(/<[^>]*>/g, '').replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, '$1')).trim();
+}
+
+function decodeXml(value: string): string {
+  return value
+    .replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'").replace(/&amp;/g, '&')
+    .replace(/&#(\d+);/g, (_, code: string) => String.fromCodePoint(Number(code)))
+    .replace(/&#x([\da-f]+);/gi, (_, code: string) => String.fromCodePoint(parseInt(code, 16)));
+}
+
+function pointInPolygon(lat: number, lng: number, points: [number, number][]): boolean {
+  let inside = false;
+  for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
+    const [yi, xi] = points[i];
+    const [yj, xj] = points[j];
+    const crosses = yi > lat !== yj > lat && lng < ((xj - xi) * (lat - yi)) / (yj - yi || Number.EPSILON) + xi;
+    if (crosses) inside = !inside;
+  }
+  return inside;
+}
+
+function distanceMeters(lat1: number, lng1: number, lat2: number, lng2: number): number {
+  const rad = (value: number) => value * Math.PI / 180;
+  const dLat = rad(lat2 - lat1);
+  const dLng = rad(lng2 - lng1);
+  const a = Math.sin(dLat / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(dLng / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+}
+
+function parseCapAlert(xml: string, lat: number, lng: number): OfficialWarning | null {
+  const status = xmlValue(xml, 'status');
+  if (status && status !== 'Actual') return null;
+  if (xmlValue(xml, 'msgType') === 'Cancel') return null;
+  const info = xml.match(/<(?:[\w.-]+:)?info\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?info\s*>/i)?.[1];
+  if (!info) return null;
+  const areas = [...info.matchAll(/<(?:[\w.-]+:)?area\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?area\s*>/gi)].map((match) => match[1]);
+  let isRelevant = false;
+  for (const area of areas) {
+    const name = xmlValue(area, 'areaDesc');
+    for (const match of area.matchAll(/<(?:[\w.-]+:)?polygon\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?polygon\s*>/gi)) {
+      const points = decodeXml(match[1]).trim().split(/\s+/).map((pair) => pair.split(',').map(Number) as [number, number]);
+      if (points.length >= 3 && points.every(([a, b]) => Number.isFinite(a) && Number.isFinite(b)) && pointInPolygon(lat, lng, points)) isRelevant = true;
+    }
+    for (const match of area.matchAll(/<(?:[\w.-]+:)?circle\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?circle\s*>/gi)) {
+      const [center, radius] = decodeXml(match[1]).trim().split(/\s+/);
+      const [centerLat, centerLng] = center?.split(',').map(Number) ?? [];
+      if (Number.isFinite(centerLat) && Number.isFinite(centerLng) && Number.isFinite(Number(radius)) && distanceMeters(lat, lng, centerLat, centerLng) <= Number(radius)) isRelevant = true;
+    }
+    if (!area.match(/<(?:[\w.-]+:)?(?:polygon|circle)\b/i) && /\bindia\b|\bnational\b/i.test(name)) isRelevant = true;
+  }
+  if (!isRelevant) return null;
+
+  const alertId = xmlValue(xml, 'identifier') || `${xmlValue(info, 'event')}-${xmlValue(info, 'effective')}`;
+  const expires = xmlValue(info, 'expires');
+  if (expires && Date.parse(expires) < Date.now()) return null;
+  const severityValue = xmlValue(info, 'severity');
+  const severity = ['Extreme', 'Severe', 'Moderate', 'Minor'].includes(severityValue) ? severityValue as OfficialWarning['severity'] : 'Unknown';
+  const instructions = xmlValue(info, 'instruction');
+  return {
+    id: alertId,
+    title: xmlValue(info, 'headline') || xmlValue(info, 'event') || 'Official weather alert',
+    severity,
+    description: xmlValue(info, 'description') || xmlValue(info, 'event'),
+    source: xmlValue(info, 'senderName') || xmlValue(xml, 'sender') || 'India Meteorological Department (CAP)',
+    ...(xmlValue(info, 'effective') ? { startsAt: xmlValue(info, 'effective') } : {}),
+    ...(expires ? { endsAt: expires } : {}),
+    precautions: instructions ? instructions.split(/\n|\r/).map((line) => line.trim()).filter(Boolean).slice(0, 8) : [],
+  };
+}
+
+async function fetchOfficialWarnings(lat: number, lng: number): Promise<OfficialWarningResult> {
+  const key = `${lat.toFixed(2)},${lng.toFixed(2)}`;
+  const cached = officialWarningCache.get(key);
+  if (cached && Date.now() - cached.at < 5 * 60 * 1000) return cached.value;
+  try {
+    const feedUrl = new URL(env.WEATHER_OFFICIAL_ALERTS_URL);
+    const { data } = await axios.get<string>(feedUrl.toString(), { timeout: 7000, responseType: 'text', headers: { Accept: 'application/rss+xml, application/xml, text/xml' } });
+    const xml = String(data);
+    const rssItems = [...xml.matchAll(/<(?:[\w.-]+:)?item\b[^>]*>([\s\S]*?)<\/(?:[\w.-]+:)?item\s*>/gi)].slice(0, 30);
+    const links = [...new Set(rssItems.map((match) => xmlValue(match[1], 'link') || xmlValue(match[1], 'guid')).filter((link) => {
+      try { const url = new URL(link); return url.protocol === 'https:' && url.hostname === feedUrl.hostname; } catch { return false; }
+    }))].slice(0, 20);
+    const results = await Promise.all(links.map(async (link) => {
+      try {
+        const response = await axios.get<string>(link, { timeout: 5000, responseType: 'text', headers: { Accept: 'application/xml, text/xml' } });
+        return parseCapAlert(String(response.data), lat, lng);
+      } catch { return null; }
+    }));
+    const items = results.filter((item): item is OfficialWarning => item !== null);
+    const value: OfficialWarningResult = { status: 'available', items, message: items.length ? 'Active official CAP alerts intersecting this location.' : 'No active official IMD CAP alerts intersect this location.' };
+    officialWarningCache.set(key, { value, at: Date.now() });
+    return value;
+  } catch (error) {
+    logger.warn('official weather warning feed failed:', (error as Error).message);
+    return { status: 'unavailable', items: [], message: 'The official IMD CAP warning feed is temporarily unavailable.' };
+  }
+}
+
 const incidentWeatherCache = new Map<
   string,
   { snapshot: IncidentWeatherSnapshot; at: number }
@@ -510,11 +631,7 @@ export async function getIncidentWeather(
       incidentId,
       address: address ?? null,
       ...hit.snapshot,
-      officialWarnings: {
-        status: 'not_integrated' as const,
-        items: [],
-        message: 'Official IMD/government warning feeds are not integrated yet.',
-      },
+      officialWarnings: await fetchOfficialWarnings(lat, lng),
       stale: false,
       ageMinutes: Math.round(ageMin),
     };
@@ -531,11 +648,7 @@ export async function getIncidentWeather(
       incidentId,
       address: address ?? null,
       ...snapshot,
-      officialWarnings: {
-        status: 'not_integrated' as const,
-        items: [],
-        message: 'Official IMD/government warning feeds are not integrated yet.',
-      },
+      officialWarnings: await fetchOfficialWarnings(lat, lng),
       stale: false,
       ageMinutes: 0,
     };
@@ -550,11 +663,7 @@ export async function getIncidentWeather(
         incidentId,
         address: address ?? null,
         ...hit.snapshot,
-        officialWarnings: {
-          status: 'not_integrated' as const,
-          items: [],
-          message: 'Official IMD/government warning feeds are not integrated yet.',
-        },
+        officialWarnings: await fetchOfficialWarnings(lat, lng),
         stale: true,
         ageMinutes: Math.round(ageMin),
       };

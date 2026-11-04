@@ -34,8 +34,8 @@ beforeAll(async () => {
   const pw = 'Passw0rd!123';
   user = await register({ name: 'Asha', email: 'asha@test.dev', phone: '+911111111111', password: pw });
   stranger = await register({ name: 'Ravi', email: 'ravi@test.dev', phone: '+912222222222', password: pw });
-  officer = await register({ name: 'Officer One', email: 'o1@test.dev', phone: '+913333333333', password: pw, inviteCode: 'test-invite', badgeId: 'B-1' });
-  officer2 = await register({ name: 'Officer Two', email: 'o2@test.dev', phone: '+914444444444', password: pw, inviteCode: 'test-invite', badgeId: 'B-2' });
+  officer = await register({ name: 'Officer One', email: 'o1@test.dev', phone: '+913333333333', password: pw, inviteCode: 'test-invite', badgeId: 'B-1', department: 'POLICE' });
+  officer2 = await register({ name: 'Officer Two', email: 'o2@test.dev', phone: '+914444444444', password: pw, inviteCode: 'test-invite', badgeId: 'B-2', department: 'POLICE' });
 });
 
 afterAll(async () => {
