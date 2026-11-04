@@ -20,7 +20,7 @@ export function AuthPageLayout({
       <div aria-hidden="true" className="auth-decoration auth-decoration--top" />
       <div aria-hidden="true" className="auth-decoration auth-decoration--bottom" />
       <header className="auth-header">
-        <Link aria-label="Sentinel dashboard" className="auth-brand" to="/">
+        <Link aria-label="Sentinel home" className="auth-brand" to="/">
           <span className="brand-mark">
             <Icon name="compass" />
           </span>
@@ -31,7 +31,7 @@ export function AuthPageLayout({
         </Link>
         <Link className="auth-home-link" to="/">
           <Icon name="arrow" />
-          Back to dashboard
+          Back to home
         </Link>
       </header>
 
@@ -45,15 +45,7 @@ export function AuthPageLayout({
           <p className="auth-description">{description}</p>
         </div>
         {children}
-        <p className="auth-privacy-note">
-          <Icon name="lock" />
-          Your credentials are not stored by this preview.
-        </p>
       </section>
-
-      <footer className="auth-footer">
-        Sentinel 2.0 · Account services are not connected in this preview
-      </footer>
     </main>
   );
 }

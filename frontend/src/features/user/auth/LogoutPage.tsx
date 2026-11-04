@@ -18,7 +18,7 @@ export function LogoutPage() {
   }
 
   if (signedOut) {
-    return <Navigate replace to="/login" />;
+    return <Navigate replace to="/" />;
   }
 
   if (status === "unauthenticated" || status === "unavailable") {
@@ -38,7 +38,7 @@ export function LogoutPage() {
             ? "The account service could not verify your session. No sign-out was confirmed."
             : "The account service confirmed that no user is signed in."}
         </p>
-        <Link className="placeholder-back-link" to="/">
+        <Link className="placeholder-back-link" to="/user">
           <Icon name="arrow" />
           Back to dashboard
         </Link>

@@ -118,7 +118,7 @@ function DashboardAlertSection({
     feed?.alerts.filter((alert) =>
       isWeather ? alert.category === "weather" : alert.category !== "weather",
     ) ?? [];
-  const linkTo = `/alerts?category=${group}`;
+  const linkTo = "/alerts";
 
   return (
     <section aria-labelledby={headingId} className="alerts-section">

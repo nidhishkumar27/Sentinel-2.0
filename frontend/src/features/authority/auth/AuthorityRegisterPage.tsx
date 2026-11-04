@@ -187,6 +187,10 @@ export default function AuthorityRegisterPage() {
         <p className="auth-muted">
           Already registered? <Link to="/authority/login">Sign in</Link>
         </p>
+
+        <p className="auth-muted">
+          <Link to="/">Back to home</Link>
+        </p>
       </form>
     </div>
   );

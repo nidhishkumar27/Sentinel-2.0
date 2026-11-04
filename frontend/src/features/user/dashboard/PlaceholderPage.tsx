@@ -17,10 +17,10 @@ export function PlaceholderPage({
       <div className="placeholder-icon">
         <Icon name={icon} />
       </div>
-      <p className="eyebrow">SENTINEL 2.0 · PHASE 1 PREVIEW</p>
+      <p className="eyebrow">SENTINEL · PHASE 1 PREVIEW</p>
       <h1 id="placeholder-heading">{title}</h1>
       <p className="placeholder-description">{description}</p>
-      <Link className="placeholder-back-link" to="/">
+      <Link className="placeholder-back-link" to="/user">
         <Icon name="arrow" />
         Back to dashboard
       </Link>

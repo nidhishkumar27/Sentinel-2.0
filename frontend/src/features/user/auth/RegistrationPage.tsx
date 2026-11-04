@@ -196,6 +196,19 @@ export function RegistrationPage() {
             }}
             value={password}
           />
+          <PasswordField
+            autoComplete="new-password"
+            error={errors.confirmation}
+            id="register-confirmation"
+            label="Confirm password"
+            name="confirm-password"
+            onChange={(event) => {
+              setConfirmation(event.target.value);
+              setErrors((current) => ({ ...current, confirmation: "" }));
+              setFeedback("");
+            }}
+            value={confirmation}
+          />
           <TextField
             autoComplete="tel"
             error={errors.phone}
@@ -227,19 +240,6 @@ export function RegistrationPage() {
             </div>)}
             {contacts.length < 5 && <button type="button" className="integration-secondary-button" onClick={() => setContacts([...contacts, { name: "", phone: "", relationship: "" }])}>Add another contact</button>}
           </fieldset>
-          <PasswordField
-            autoComplete="new-password"
-            error={errors.confirmation}
-            id="register-confirmation"
-            label="Confirm password"
-            name="confirm-password"
-            onChange={(event) => {
-              setConfirmation(event.target.value);
-              setErrors((current) => ({ ...current, confirmation: "" }));
-              setFeedback("");
-            }}
-            value={confirmation}
-          />
           {Object.values(errors).some(Boolean) && (
             <p className="form-error-summary" role="alert">
               Please correct the highlighted fields.

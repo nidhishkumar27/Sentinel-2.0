@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatReverse, formatSearch } from '../../src/modules/geo/geocoder.service';
+import { formatReverse, formatSearch, resolveGeocoderUserAgent } from '../../src/modules/geo/geocoder.service';
 import { buildOverpassQuery, osmElementToZone } from '../../src/modules/safety-map/facilities.import';
 
 describe('geocoder formatting', () => {
@@ -12,6 +12,12 @@ describe('geocoder formatting', () => {
     const r = formatSearch([{ display_name: 'A', lat: '12.9', lon: '77.6', type: 'city' }, { display_name: 'B', lat: 'x', lon: '1' }, { lat: '1', lon: '1' }]);
     expect(r).toEqual([{ label: 'A', lat: 12.9, lng: 77.6, type: 'city' }]);
     expect(formatSearch(undefined)).toEqual([]);
+  });
+  it('replaces placeholder User-Agents that Nominatim blocks with 403', () => {
+    expect(resolveGeocoderUserAgent('SentinelSafetyPlatform/2.0 (you@example.com)')).toBe('SentinelSafetyPlatform/2.0');
+    expect(resolveGeocoderUserAgent('SentinelSafetyPlatform/2.0 (admin@example.org)')).toBe('SentinelSafetyPlatform/2.0');
+    expect(resolveGeocoderUserAgent('SentinelSafetyPlatform/2.0 (team@realmail.in)')).toBe('SentinelSafetyPlatform/2.0 (team@realmail.in)');
+    expect(resolveGeocoderUserAgent('SentinelSafetyPlatform/2.0')).toBe('SentinelSafetyPlatform/2.0');
   });
 });
 

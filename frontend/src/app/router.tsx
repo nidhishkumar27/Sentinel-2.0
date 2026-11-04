@@ -10,7 +10,7 @@ import { AlertsPage } from "../features/user/alerts/AlertsPage";
 import { SOSPage } from "../features/user/sos/SOSPage";
 import { SafetyAssistantPage } from "../features/user/safety-assistant/SafetyAssistantPage";
 import { RequireUser } from "./RequireUser";
-import { RoleSelectPage } from "../features/user/dashboard/RoleSelectPage";
+import { HomePage } from "../features/home/HomePage";
 import { EmergencyContactsPage } from "../features/user/contacts/EmergencyContactsPage";
 import AuthorityRoutes from "../features/authority/routes";
 
@@ -18,7 +18,7 @@ export function AppRouter() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<RoleSelectPage />} />
+        <Route path="/" element={<HomePage />} />
         <Route path="/authority/*" element={<AuthorityRoutes />} />
         <Route path="/login" element={<LoginPage />} />
         <Route path="/register" element={<RegistrationPage />} />

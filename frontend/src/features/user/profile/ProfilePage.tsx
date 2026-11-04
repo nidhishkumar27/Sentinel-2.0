@@ -32,7 +32,7 @@ export function ProfilePage() {
           <Link className="auth-submit auth-submit--link" to="/login">
             Sign in
           </Link>
-          <Link className="account-cancel-link" to="/">
+          <Link className="account-cancel-link" to="/user">
             Back to dashboard
           </Link>
         </div>

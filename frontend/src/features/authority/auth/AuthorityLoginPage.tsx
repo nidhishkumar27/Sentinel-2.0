@@ -104,6 +104,10 @@ export default function AuthorityLoginPage() {
             Register here
           </Link>
         </p>
+
+        <p className="auth-muted" style={{ textAlign: 'center' }}>
+          <Link to="/">Back to home</Link>
+        </p>
       </form>
     </div>
   );

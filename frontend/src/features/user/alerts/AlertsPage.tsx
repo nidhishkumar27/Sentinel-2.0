@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
 import { Icon, type IconName } from "../../../components/ui/Icon";
 import { integrationConfig, safetyIntegrations } from "../../../app/integrations";
 import type {
   AlertFeed,
-  NaturalHazardCategory,
   SafetyAlert,
   SafetyHazardAlert,
   WeatherOverview,
@@ -14,13 +12,6 @@ import type {
 import { requestApi } from "../../../services/apiClient";
 
 type LoadState = "loading" | "unavailable" | "timeout" | "error" | "empty" | "ready";
-type AlertFilter = "all" | "weather" | "safety";
-
-const alertFilters: { id: AlertFilter; label: string }[] = [
-  { id: "all", label: "All alerts" },
-  { id: "weather", label: "Weather" },
-  { id: "safety", label: "Safety" },
-];
 
 const categoryPresentation: Record<
   SafetyAlert["category"],
@@ -40,16 +31,7 @@ const severityClass: Record<WeatherSeverity, string> = {
   SEVERE: "weather-severity--severe",
 };
 
-const safetyCategoryFilters: { id: "all" | NaturalHazardCategory; label: string }[] = [
-  { id: "all", label: "All" },
-  { id: "EARTHQUAKE", label: "Earthquake" },
-  { id: "FLOOD", label: "Flood" },
-  { id: "LANDSLIDE", label: "Landslide" },
-  { id: "CYCLONE", label: "Cyclone / storm" },
-  { id: "OTHER", label: "Other hazards" },
-];
-
-const safetyCategoryLabels: Record<NaturalHazardCategory, string> = {
+const safetyCategoryLabels: Record<SafetyHazardAlert["category"], string> = {
   EARTHQUAKE: "Earthquake",
   FLOOD: "Flood",
   LANDSLIDE: "Landslide",
@@ -369,120 +351,227 @@ function SafetyAlertCard({ alert }: { alert: SafetyHazardAlert }) {
   );
 }
 
-function SafetyAlertsPanel({
-  alerts,
+type Place = { label: string; lat: number; lng: number };
+
+async function reverseLabel(latitude: number, longitude: number): Promise<string | null> {
+  const place = await requestApi<{ label: string } | null>("/geo/reverse", {
+    query: { lat: latitude, lng: longitude },
+  }).catch(() => null);
+  return place?.label ?? null;
+}
+
+function LocationAlertsPanel({
+  weather,
+  hazards,
   authorityAlerts,
-  selectedCategory,
-  onSelectCategory,
   onLocationSelected,
 }: {
-  alerts: SafetyHazardAlert[];
+  weather: WeatherOverview | null;
+  hazards: SafetyHazardAlert[];
   authorityAlerts: SafetyAlert[];
-  selectedCategory: "all" | NaturalHazardCategory;
-  onSelectCategory: (value: "all" | NaturalHazardCategory) => void;
   onLocationSelected: (location: { latitude: number; longitude: number }) => void;
 }) {
-  const [geoLocation, setGeoLocation] = useState(() => {
-    const latest = safetyIntegrations.geolocation.getLatestLocation();
-    return latest?.source === "browser" ? latest : null;
-  });
+  const [currentAddress, setCurrentAddress] = useState<string | null>(null);
   const [requestingLocation, setRequestingLocation] = useState(false);
-  const [permissionStatus, setPermissionStatus] = useState<ReturnType<typeof safetyIntegrations.geolocation.getPermissionStatus> extends Promise<infer T> ? T : never>("unknown");
+  const [permissionStatus, setPermissionStatus] = useState<string>("unknown");
   const [manualLocation, setManualLocation] = useState("");
-  const [selectedPlace, setSelectedPlace] = useState<{ label: string; lat: number; lng: number } | null>(null);
-  const [locationSuggestions, setLocationSuggestions] = useState<{ label: string; lat: number; lng: number }[]>([]);
+  const [selectedPlace, setSelectedPlace] = useState<Place | null>(null);
+  const [locationSuggestions, setLocationSuggestions] = useState<Place[]>([]);
   const [locationSearchState, setLocationSearchState] = useState("");
 
   useEffect(() => {
     void safetyIntegrations.geolocation.getPermissionStatus().then(setPermissionStatus);
+    const latest = safetyIntegrations.geolocation.getLatestLocation();
+    if (latest?.source === "browser") {
+      void reverseLabel(latest.latitude, latest.longitude).then((label) => {
+        if (label) setCurrentAddress(label);
+      });
+    }
   }, []);
 
-  const selectedLocation = selectedPlace?.label
-    || (geoLocation ? `${geoLocation.latitude.toFixed(2)}, ${geoLocation.longitude.toFixed(2)}` : "Use your current location");
-  const visibleAlerts = [...alerts]
-    .filter((alert) => selectedCategory === "all" || alert.category === selectedCategory)
-    .sort((a, b) => hazardSeverityRank[b.severity] - hazardSeverityRank[a.severity]);
+  const selectedLabel =
+    selectedPlace?.label ?? currentAddress ?? "Use your current location or search for a place";
+  const visibleHazards = [...hazards].sort(
+    (a, b) => hazardSeverityRank[b.severity] - hazardSeverityRank[a.severity],
+  );
+
+  async function handleUseCurrentLocation() {
+    setRequestingLocation(true);
+    setLocationSearchState("");
+    const result = await safetyIntegrations.geolocation.requestCurrentLocation();
+    if (result.status === "success") {
+      const { latitude, longitude } = result.location;
+      setSelectedPlace(null);
+      setManualLocation("");
+      setLocationSuggestions([]);
+      const label = await reverseLabel(latitude, longitude);
+      setCurrentAddress(label ?? "Your current location");
+      setLocationSearchState(
+        label ? `Showing alerts for ${label}.` : "Showing alerts for your current location.",
+      );
+      onLocationSelected(result.location);
+      void requestApi("/users/me/location", {
+        method: "PATCH",
+        body: { lat: latitude, lng: longitude },
+      }).catch(() => undefined);
+    } else if (result.status === "permission-denied") {
+      setPermissionStatus("denied");
+      setLocationSearchState("Location permission was denied. Search for a location instead.");
+    } else {
+      setLocationSearchState("Location is unavailable. Search for a location instead.");
+    }
+    setRequestingLocation(false);
+  }
+
+  async function handleSearch() {
+    setLocationSearchState("Searching locations…");
+    try {
+      const places = await requestApi<Place[]>("/geo/search", {
+        query: { q: manualLocation.trim(), limit: 5 },
+      });
+      setLocationSuggestions(places);
+      setLocationSearchState(
+        places.length ? "Choose a result to load alerts for that location." : "No matching location found.",
+      );
+    } catch {
+      setLocationSearchState("Location search is unavailable. Use your current location instead.");
+    }
+  }
+
+  function handleSelectPlace(place: Place) {
+    setSelectedPlace(place);
+    setCurrentAddress(null);
+    setManualLocation(place.label);
+    setLocationSuggestions([]);
+    setLocationSearchState(`Loading alerts for ${place.label}…`);
+    onLocationSelected({ latitude: place.lat, longitude: place.lng });
+  }
 
   return (
-    <section className="weather-panel" aria-label="Safety alerts">
+    <section className="weather-panel location-alerts-panel" aria-label="Location alerts">
       <div className="section-heading section-heading--compact">
-        <h2>Safety Alerts</h2>
-        <span className="weather-updated">Selected location: {selectedLocation}</span>
-      </div>
-
-      <div className="alert-category-nav" aria-label="Safety alert categories">
-        {safetyCategoryFilters.map((item) => (
-          <button
-            key={item.id}
-            type="button"
-            aria-pressed={selectedCategory === item.id}
-            className={`alert-category-link${selectedCategory === item.id ? " alert-category-link--active" : ""}`}
-            onClick={() => onSelectCategory(item.id)}
-          >
-            {item.label}
-          </button>
-        ))}
+        <h2>Location alerts</h2>
+        <span className="weather-updated">Selected location: {selectedLabel}</span>
       </div>
 
       <div className="manual-location-card" aria-live="polite">
-        <button type="button" className="integration-secondary-button" disabled={requestingLocation} onClick={async () => {
-          setRequestingLocation(true);
-          const result = await safetyIntegrations.geolocation.requestCurrentLocation();
-          if (result.status === "success") {
-            setGeoLocation(result.location);
-            setSelectedPlace(null);
-            setManualLocation("");
-            setLocationSuggestions([]);
-            setLocationSearchState("");
-            onLocationSelected(result.location);
-            void requestApi("/users/me/location", { method: "PATCH", body: { lat: result.location.latitude, lng: result.location.longitude } }).catch(() => undefined);
-          }
-          else if (result.status === "permission-denied") setPermissionStatus("denied");
-          setRequestingLocation(false);
-        }}>{requestingLocation ? "Getting location…" : "Use my current location"}</button>
-        {geoLocation && <p className="location-safety-note">Your location: {geoLocation.latitude.toFixed(6)}, {geoLocation.longitude.toFixed(6)}</p>}
-        <label htmlFor="manual-safety-location">Manual safety alert location</label>
-        <div className="safety-location-search">
-          <input id="manual-safety-location" value={manualLocation} onChange={(event) => { setManualLocation(event.target.value); setLocationSuggestions([]); setLocationSearchState(""); }} placeholder="Type a town, city or region" />
-          <button type="button" className="integration-secondary-button" disabled={manualLocation.trim().length < 3} onClick={async () => {
-            setLocationSearchState("Searching locations…");
-            try {
-              const places = await requestApi<{ label: string; lat: number; lng: number }[]>("/geo/search", { query: { q: manualLocation.trim(), limit: 5 } });
-              setLocationSuggestions(places);
-              setLocationSearchState(places.length ? "Choose a result to load alerts for that location." : "No matching location found.");
-            } catch { setLocationSearchState("Location search is unavailable. Use your current location instead."); }
-          }}>Search</button>
+        <div className="location-picker-row">
+          <button
+            type="button"
+            className="integration-secondary-button"
+            disabled={requestingLocation}
+            onClick={() => void handleUseCurrentLocation()}
+          >
+            {requestingLocation ? "Getting location…" : "Use my current location"}
+          </button>
+          <div className="safety-location-search">
+            <input
+              aria-label="Search location"
+              value={manualLocation}
+              onChange={(event) => {
+                setManualLocation(event.target.value);
+                setLocationSuggestions([]);
+                setLocationSearchState("");
+              }}
+              placeholder="Type a town, city or region"
+            />
+            <button
+              type="button"
+              className="integration-secondary-button"
+              disabled={manualLocation.trim().length < 3}
+              onClick={() => void handleSearch()}
+            >
+              Search
+            </button>
+          </div>
         </div>
-        {locationSearchState && <p className="location-safety-note" role="status">{locationSearchState}</p>}
-        {locationSuggestions.length > 0 && <div className="safety-location-results" aria-label="Location search results">{locationSuggestions.map((place) => <button type="button" key={`${place.lat},${place.lng}`} onClick={() => {
-          setSelectedPlace(place);
-          setGeoLocation(null);
-          setManualLocation(place.label);
-          setLocationSuggestions([]);
-          setLocationSearchState(`Loading alerts for ${place.label}…`);
-          onLocationSelected({ latitude: place.lat, longitude: place.lng });
-        }}>{place.label}</button>)}</div>}
-        {permissionStatus === "denied" && (
-          <p className="location-safety-note">Location access denied. Manual location selection is available for reference.</p>
+        {currentAddress && (
+          <p className="location-safety-note">Your location: {currentAddress}</p>
         )}
-        <p className="location-safety-note">Selected location: {selectedLocation}. Alerts are marked local, regional or national only when the service provides enough information.</p>
+        {locationSearchState && (
+          <p className="location-safety-note" role="status">{locationSearchState}</p>
+        )}
+        {locationSuggestions.length > 0 && (
+          <div className="safety-location-results" aria-label="Location search results">
+            {locationSuggestions.map((place) => (
+              <button
+                type="button"
+                key={`${place.lat},${place.lng}`}
+                onClick={() => handleSelectPlace(place)}
+              >
+                {place.label}
+              </button>
+            ))}
+          </div>
+        )}
+        {permissionStatus === "denied" && (
+          <p className="location-safety-note">
+            Location access denied. Search for a town, city or region instead.
+          </p>
+        )}
       </div>
 
-      {visibleAlerts.length > 0 ? (
-        <div className="weather-warning-list" style={{ marginTop: "16px" }}>
-          {visibleAlerts.map((alert) => (
-            <SafetyAlertCard key={alert.id} alert={alert} />
-          ))}
+      {weather ? (
+        <div className="weather-page-stack location-report-stack">
+          <WeatherOverviewPanel weather={weather} />
+          <WeatherForecastPanel weather={weather} />
+          <section className="weather-panel">
+            <div className="section-heading section-heading--compact">
+              <h2>Weather warnings</h2>
+            </div>
+            {weather.warnings.length > 0 ? (
+              <div className="weather-warning-list">
+                {weather.warnings.map((warning) => (
+                  <WeatherWarningCard key={warning.id} warning={warning} />
+                ))}
+              </div>
+            ) : (
+              <p className="weather-empty-note">
+                {weather.officialWarnings?.message ?? "Official warning status is unavailable."} Sentinel-derived forecast indicators are shown separately and are not official warnings.
+              </p>
+            )}
+          </section>
         </div>
       ) : (
-        <p className="weather-empty-note" style={{ marginTop: "16px" }}>
-          No active natural hazard alerts were returned for {selectedLocation} in this category.
-        </p>
+        <section className="integration-card integration-state location-report-stack" role="status">
+          <span className="integration-icon integration-icon--amber">
+            <Icon name="sparkle" />
+          </span>
+          <h2>Weather data unavailable</h2>
+          <p>
+            Choose your current location to load current conditions and Sentinel-derived advisories from the backend weather API.
+          </p>
+          <button className="integration-secondary-button" onClick={() => void handleUseCurrentLocation()} type="button">
+            Use my current location
+          </button>
+        </section>
       )}
-      {authorityAlerts.length > 0 && <div className="weather-warning-list" style={{ marginTop: "18px" }}>
-        <h3>Authority safety alerts</h3>
-        {authorityAlerts.map((alert) => <AlertCard key={alert.id} alert={alert} />)}
-      </div>}
+
+      <div className="location-report-section">
+        <h3>Safety Alerts</h3>
+        {visibleHazards.length > 0 ? (
+          <div className="weather-warning-list">
+            {visibleHazards.map((alert) => (
+              <SafetyAlertCard key={alert.id} alert={alert} />
+            ))}
+          </div>
+        ) : (
+          <p className="weather-empty-note">
+            No natural hazard alerts are currently available for the selected location.
+          </p>
+        )}
+      </div>
+
+      {authorityAlerts.length > 0 && (
+        <div className="location-report-section">
+          <h3>Authority alerts</h3>
+          <div className="live-alert-list">
+            {authorityAlerts.map((alert) => (
+              <AlertCard key={alert.id} alert={alert} />
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -490,24 +579,7 @@ function SafetyAlertsPanel({
 export function AlertsPage() {
   const [state, setState] = useState<LoadState>("loading");
   const [feed, setFeed] = useState<AlertFeed | null>(null);
-  const [weatherLocationState, setWeatherLocationState] = useState("");
-  const [selectedSafetyCategory, setSelectedSafetyCategory] = useState<
-    "all" | NaturalHazardCategory
-  >("all");
-  const [searchParams] = useSearchParams();
-  const requestedFilter = searchParams.get("category");
-  const filter: AlertFilter =
-    requestedFilter === "weather" || requestedFilter === "safety"
-      ? requestedFilter
-      : "all";
-  const filteredAlerts =
-    feed?.alerts.filter((alert) =>
-      filter === "all"
-        ? true
-        : filter === "weather"
-          ? alert.category === "weather"
-          : alert.category !== "weather",
-    ) ?? [];
+  const [refreshError, setRefreshError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -542,41 +614,14 @@ export function AlertsPage() {
     };
   }, []);
 
-  const weatherData = feed?.weather ?? null;
-  const safetyAlerts = feed?.safetyAlerts ?? [];
-  const showWeatherSection = filter !== "safety";
-  const showSafetySection = filter !== "weather";
-
-  async function loadWeatherForCurrentLocation() {
-    setWeatherLocationState("Getting your location…");
-    const result = await safetyIntegrations.geolocation.requestCurrentLocation();
-    if (result.status !== "success") {
-      setWeatherLocationState(result.status === "permission-denied" ? "Location permission was denied." : "Location is unavailable. You can use the Safety tab to enter a location manually.");
-      return;
-    }
-    const location = result.location;
-    void requestApi("/users/me/location", { method: "PATCH", body: { lat: location.latitude, lng: location.longitude } }).catch(() => undefined);
-    setWeatherLocationState(`Weather for ${location.latitude.toFixed(4)}, ${location.longitude.toFixed(4)}`);
-    const response = await safetyIntegrations.alerts.getAlerts(location);
-    if (response.status === "success") setFeed(response.value);
-    else setWeatherLocationState("Weather could not be loaded. Try again later.");
-  }
-
   async function refreshForLocation(location: { latitude: number; longitude: number }) {
+    setRefreshError("");
     const result = await safetyIntegrations.alerts.getAlerts(location);
-    if (result.status === "success") setFeed(result.value);
-    else setWeatherLocationState("Alerts could not be refreshed. Check your connection and try again.");
-  }
-
-  async function reloadAlertFeed() {
-    setState("loading");
-    const latest = safetyIntegrations.geolocation.getLatestLocation();
-    const result = await safetyIntegrations.alerts.getAlerts(latest?.source === "browser" ? latest : null);
     if (result.status === "success") {
       setFeed(result.value);
       setState("ready");
     } else {
-      setState(result.status);
+      setRefreshError("Alerts could not be refreshed. Check your connection and try again.");
     }
   }
 
@@ -598,21 +643,6 @@ export function AlertsPage() {
         </p>
       )}
 
-      <nav aria-label="Alert categories" className="alert-category-nav">
-        {alertFilters.map((item) => (
-          <Link
-            aria-current={filter === item.id ? "page" : undefined}
-            className={`alert-category-link${filter === item.id ? " alert-category-link--active" : ""}`}
-            key={item.id}
-            to={
-              item.id === "all" ? "/alerts" : `/alerts?category=${item.id}`
-            }
-          >
-            {item.label}
-          </Link>
-        ))}
-      </nav>
-
       {state === "loading" && (
         <p className="integration-card integration-state" role="status">
           <Icon name="clock" />
@@ -620,10 +650,7 @@ export function AlertsPage() {
         </p>
       )}
       {state === "unavailable" && (
-        <section
-          className="integration-card integration-state"
-          role="status"
-        >
+        <section className="integration-card integration-state" role="status">
           <span className="integration-icon integration-icon--amber">
             <Icon name="alerts" />
           </span>
@@ -675,88 +702,25 @@ export function AlertsPage() {
       )}
       {state === "ready" && feed && (
         <>
-          {showWeatherSection && (
-            <div className="weather-page-stack">
-              {weatherData ? (
-                <>
-                  <WeatherOverviewPanel weather={weatherData} />
-                  <WeatherForecastPanel weather={weatherData} />
-                  <section className="weather-panel">
-                    <div className="section-heading section-heading--compact">
-                      <h2>Weather warnings</h2>
-                    </div>
-                    {weatherData.warnings.length > 0 ? (
-                      <div className="weather-warning-list">
-                        {weatherData.warnings.map((warning) => (
-                          <WeatherWarningCard key={warning.id} warning={warning} />
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="weather-empty-note">
-                        {weatherData.officialWarnings?.message ?? "Official warning status is unavailable."} Sentinel-derived forecast indicators are shown separately and are not official warnings.
-                      </p>
-                    )}
-                  </section>
-                </>
-              ) : (
-                <section className="integration-card integration-state" role="status">
-                  <span className="integration-icon integration-icon--amber">
-                    <Icon name="sparkle" />
-                  </span>
-                  <h2>Weather data unavailable</h2>
-                  <p>
-                    Choose your current location to load current conditions and Sentinel-derived advisories from the backend weather API.
-                  </p>
-                  <button className="integration-secondary-button" onClick={() => void loadWeatherForCurrentLocation()} type="button">Use my current location</button>
-                  {weatherLocationState && <p role="status">{weatherLocationState}</p>}
-                </section>
-              )}
-            </div>
+          {feed.freshness === "stale" && (
+            <p className="stale-data-banner" role="status">
+              These alerts may be out of date. Last response received {formatTimestamp(feed.fetchedAt)}.
+            </p>
           )}
-
-          {showSafetySection && (
-            <SafetyAlertsPanel
-              alerts={safetyAlerts}
-              authorityAlerts={filteredAlerts.filter((alert) => alert.category !== "weather")}
-              selectedCategory={selectedSafetyCategory}
-              onSelectCategory={setSelectedSafetyCategory}
-              onLocationSelected={refreshForLocation}
-            />
+          {feed.freshness === "demo" && (
+            <p className="integration-demo-banner" role="note">
+              Demo alert data — not current or location-specific.
+            </p>
           )}
-
-          <section aria-label="Alert results" className="live-alert-list">
-            {feed.freshness === "stale" && (
-              <p className="stale-data-banner" role="status">
-                These alerts may be out of date. Last response received {formatTimestamp(feed.fetchedAt)}.
-              </p>
-            )}
-            {feed.freshness === "demo" && (
-              <p className="integration-demo-banner" role="note">
-                Demo alert data — not current or location-specific.
-              </p>
-            )}
-            {filteredAlerts.length > 0 ? (
-              filteredAlerts.map((alert) => (
-                <AlertCard alert={alert} key={alert.id} />
-              ))
-            ) : (
-              <section className="integration-card integration-state" role="status">
-                <h2>
-                  {filter === "weather"
-                    ? "No weather alerts returned"
-                    : filter === "safety"
-                      ? "No active safety alerts for this location"
-                      : "No active alerts for this location"}
-                </h2>
-                <p>
-                  {feed.freshness === "demo"
-                    ? "The demo integration returned no matching alerts. No live information is being shown."
-                    : `The alert service responded successfully and returned no active ${filter === "all" ? "" : `${filter} `}alerts matching the selected location.`}
-                </p>
-                <button className="integration-secondary-button" type="button" onClick={() => void reloadAlertFeed()}>Check again</button>
-              </section>
-            )}
-          </section>
+          {refreshError && (
+            <p className="integration-error" role="alert">{refreshError}</p>
+          )}
+          <LocationAlertsPanel
+            weather={feed.weather ?? null}
+            hazards={feed.safetyAlerts ?? []}
+            authorityAlerts={feed.alerts.filter((alert) => alert.category !== "weather")}
+            onLocationSelected={refreshForLocation}
+          />
         </>
       )}
     </div>

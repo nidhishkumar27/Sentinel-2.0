@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import { useAuthorityAuth } from '../auth/AuthorityAuthContext';
 import { ConnectionBadge } from '../components/Badges';
 import { useLive } from '../live/LiveDataProvider';
@@ -16,6 +16,7 @@ const NAV = [
 
 export default function AuthorityLayout() {
   const { user, logout } = useAuthorityAuth();
+  const navigate = useNavigate();
   const { markers, connection, lastSyncAt } = useLive();
   const push = usePush();
   const [now, setNow] = useState(Date.now());
@@ -54,7 +55,7 @@ export default function AuthorityLayout() {
           {push.state === 'enabled' && <button className="auth-btn auth-btn--small" onClick={() => void push.disable()}>Alerts on</button>}
           {push.state === 'denied' && <span className="auth-muted small">Notifications blocked in browser</span>}
           <span className="auth-muted">{user?.name}{user?.badgeId ? ` · ${user.badgeId}` : ''}</span>
-          <button className="auth-btn auth-btn--small" onClick={() => void logout()}>Sign out</button>
+          <button className="auth-btn auth-btn--small" onClick={() => { navigate('/'); void logout(); }}>Sign out</button>
         </header>
         {stale && <div className="auth-alert auth-alert--warn" role="alert">Live updates are interrupted and the data shown may be out of date. Reconnecting…</div>}
         {push.error && <div className="auth-alert auth-alert--warn">{push.error}</div>}

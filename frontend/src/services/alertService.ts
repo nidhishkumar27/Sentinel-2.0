@@ -1,4 +1,4 @@
-import type { AlertFeed, AlertService, Coordinates, ServiceResult } from "../types/safetyIntegrations";
+import type { AlertFeed, AlertService, Coordinates, SafetyHazardAlert, ServiceResult } from "../types/safetyIntegrations";
 import { requestApi } from "./apiClient";
 
 type BackendAlert = {
@@ -43,6 +43,13 @@ export const alertService: AlertService = {
       const weather = location
         ? await requestApi<BackendWeather>("/weather", { query: { lat: location.latitude, lng: location.longitude } }).catch(() => null)
         : null;
+      const safetyAlerts: SafetyHazardAlert[] = location
+        ? await requestApi<SafetyHazardAlert[]>("/alerts/hazards", { query: { lat: location.latitude, lng: location.longitude } }).catch(() => [] as SafetyHazardAlert[])
+        : [];
+      const place = location
+        ? await requestApi<{ label: string } | null>("/geo/reverse", { query: { lat: location.latitude, lng: location.longitude } }).catch(() => null)
+        : null;
+      const locationLabel = place?.label ?? "Selected location";
       return {
         status: "success",
         value: {
@@ -56,12 +63,12 @@ export const alertService: AlertService = {
           })),
           fetchedAt: weather?.fetchedAt ?? new Date().toISOString(),
           freshness: weather?.stale ? "stale" : "fresh",
-          safetyAlerts: [],
+          safetyAlerts,
           ...(weather ? { weather: {
-            locationLabel: `${weather.location.lat.toFixed(4)}, ${weather.location.lng.toFixed(4)}`,
+            locationLabel: locationLabel,
             updatedAt: weather.providerTime ?? weather.fetchedAt,
             current: {
-              locationLabel: `${weather.location.lat.toFixed(4)}, ${weather.location.lng.toFixed(4)}`,
+              locationLabel: locationLabel,
               condition: weather.current.summary,
               icon: weather.current.summary.toLowerCase(),
               temperatureC: weather.current.temperatureC,
@@ -85,7 +92,7 @@ export const alertService: AlertService = {
                 title: item.title,
                 severity: officialSeverity(item.severity ?? "Unknown"),
                 category: officialCategory(`${item.title} ${item.description ?? ""}`),
-                location: `${weather.location.lat.toFixed(4)}, ${weather.location.lng.toFixed(4)}`,
+                location: locationLabel,
                 startsAt: item.startsAt,
                 endsAt: item.endsAt,
                 description: item.description ?? item.title,
@@ -97,7 +104,7 @@ export const alertService: AlertService = {
                 title: item.title,
                 severity: warningSeverity(item.severity),
                 category: warningCategory(item.type),
-                location: `${weather.location.lat.toFixed(4)}, ${weather.location.lng.toFixed(4)}`,
+                location: locationLabel,
                 description: `${item.message} ${weather.source.note}`,
                 source: `${weather.source.name} · Sentinel-derived`,
                 precautions: [item.message],

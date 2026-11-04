@@ -488,6 +488,38 @@ describe("frontend integration readiness", () => {
     }
   });
 
+  it("falls back to a cached fix when a fresh current-location fix is unavailable", async () => {
+    const watchPosition = vi.fn((_success: unknown, error: (e: unknown) => void) => {
+      error({
+        code: 2,
+        PERMISSION_DENIED: 1,
+        POSITION_UNAVAILABLE: 2,
+        TIMEOUT: 3,
+        message: "Position unavailable",
+      });
+      return 7;
+    });
+    const getCurrentPosition = vi.fn((success: (p: unknown) => void) => {
+      success({
+        coords: { latitude: 13.08, longitude: 80.27, accuracy: 4800 },
+        timestamp: Date.now(),
+      });
+    });
+    Object.defineProperty(window.navigator, "geolocation", {
+      configurable: true,
+      value: { getCurrentPosition, watchPosition, clearWatch: vi.fn() },
+    });
+
+    const result = await safetyIntegrations.geolocation.requestCurrentLocation();
+
+    expect(result.status).toBe("success");
+    if (result.status === "success") {
+      expect(result.location.latitude).toBe(13.08);
+      expect(result.location.longitude).toBe(80.27);
+    }
+    expect(getCurrentPosition).toHaveBeenCalled();
+  });
+
   it("shows the honest unavailable alerts state", async () => {
     vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
       status: "unavailable",
@@ -536,25 +568,17 @@ describe("frontend integration readiness", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("link", { name: "View weather alerts" }).getAttribute("href"),
-    ).toBe("/alerts?category=weather");
+    ).toBe("/alerts");
     expect(
       screen.getByRole("link", { name: "View safety alerts" }).getAttribute("href"),
-    ).toBe("/alerts?category=safety");
+    ).toBe("/alerts");
   });
 
-  it("filters alert results by weather and safety categories", async () => {
+  it("shows weather and safety alerts together in one unified location card", async () => {
     vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
       status: "success",
       value: {
         alerts: [
-          {
-            id: "weather-alert",
-            category: "weather",
-            title: "Heavy rain advisory",
-            message: "A configured source reported heavy rain.",
-            timestamp: "2025-01-01T12:00:00.000Z",
-            source: "Test source",
-          },
           {
             id: "safety-alert",
             category: "emergency",
@@ -566,34 +590,38 @@ describe("frontend integration readiness", () => {
         ],
         fetchedAt: "2025-01-01T12:00:00.000Z",
         freshness: "fresh",
+        weather: {
+          locationLabel: "Test Town",
+          updatedAt: "2025-01-01T12:00:00.000Z",
+          current: null,
+          forecast: [],
+          warnings: [
+            {
+              id: "warning-rain",
+              title: "Heavy rainfall warning",
+              severity: "HIGH",
+              category: "heavy-rain",
+              location: "Test Town",
+              description: "Intense rainfall may lead to flash flooding.",
+              source: "National weather service",
+              precautions: [],
+            },
+          ],
+        },
       },
     });
 
-    const user = userEvent.setup();
-    render(
-      <MemoryRouter initialEntries={["/alerts?category=weather"]}>
-        <AlertsPage />
-      </MemoryRouter>,
-    );
+    renderWithMemoryRouter(<AlertsPage />);
 
     expect(
-      await screen.findByRole("heading", { name: "Heavy rain advisory" }),
+      await screen.findByRole("heading", { name: "Location alerts" }),
     ).toBeTruthy();
+    expect(screen.getByText("Heavy rainfall warning")).toBeTruthy();
     expect(
-      screen.queryByRole("heading", { name: "Safety incident advisory" }),
-    ).toBeNull();
-
-    await user.click(screen.getByRole("link", { name: "Safety" }));
-
-    expect(
-      await screen.findByRole("heading", { name: "Safety incident advisory" }),
+      screen.getByRole("heading", { name: "Safety incident advisory" }),
     ).toBeTruthy();
-    expect(
-      screen.queryByRole("heading", { name: "Heavy rain advisory" }),
-    ).toBeNull();
-    expect(
-      screen.getByRole("link", { name: "Safety" }).getAttribute("aria-current"),
-    ).toBe("page");
+    expect(screen.queryByRole("link", { name: "Safety" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Flood" })).toBeNull();
   });
 
   it("renders the current weather overview, seven-day forecast and active weather warnings", async () => {
@@ -902,7 +930,7 @@ describe("frontend integration readiness", () => {
 
   it("keeps all user-facing routes reachable", async () => {
     const routes = [
-      { path: "/", heading: "How are you using Sentinel?" },
+      { path: "/", heading: "Sentinel keeps every journey safe." },
       { path: "/user", heading: "Travel with confidence." },
       { path: "/sos", heading: "Sign in" },
       { path: "/safety-map", heading: "Sign in" },
@@ -929,7 +957,30 @@ describe("frontend integration readiness", () => {
     }
   });
 
-  it("renders natural hazard alerts with filtering and severity sorting", async () => {
+  it("offers user and authority sign in and sign up from the home page", async () => {
+    window.history.replaceState({}, "", "/");
+    render(
+      <AppProviders>
+        <AppRouter />
+      </AppProviders>,
+    );
+
+    expect(
+      await screen.findByRole("heading", {
+        name: "Sentinel keeps every journey safe.",
+      }),
+    ).toBeTruthy();
+    for (const href of [
+      "/login",
+      "/register",
+      "/authority/login",
+      "/authority/register",
+    ]) {
+      expect(document.querySelector(`a[href="${href}"]`)).toBeTruthy();
+    }
+  });
+
+  it("renders natural hazard alerts in one list sorted by severity", async () => {
     vi.spyOn(safetyIntegrations.alerts, "getAlerts").mockResolvedValue({
       status: "success",
       value: {
@@ -983,15 +1034,20 @@ describe("frontend integration readiness", () => {
       },
     });
 
-    const user = userEvent.setup();
     renderWithMemoryRouter(<AlertsPage />);
 
     expect(await screen.findByText("Earthquake advisory")).toBeTruthy();
     expect(screen.getByText("Cyclone warning")).toBeTruthy();
-
-    await user.click(screen.getByRole("button", { name: "Flood" }));
     expect(screen.getByText("River overflow advisory")).toBeTruthy();
-    expect(screen.queryByText("Earthquake advisory")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Flood" })).toBeNull();
+
+    const text = document.body.textContent ?? "";
+    expect(text.indexOf("Cyclone warning")).toBeLessThan(
+      text.indexOf("Earthquake advisory"),
+    );
+    expect(text.indexOf("Earthquake advisory")).toBeLessThan(
+      text.indexOf("River overflow advisory"),
+    );
   });
 
   it("shows manual location guidance and a denied-permission notice when geolocation is blocked", async () => {
@@ -1024,7 +1080,7 @@ describe("frontend integration readiness", () => {
 
     expect(await screen.findByText(/Location access denied/i)).toBeTruthy();
 
-    const input = screen.getByLabelText("Manual safety alert location");
+    const input = screen.getByLabelText("Search location");
     await user.clear(input);
     await user.type(input, "Pahalgam");
 
@@ -1047,7 +1103,7 @@ describe("frontend integration readiness", () => {
 
     expect(await screen.findByText("Safety Alerts")).toBeTruthy();
     expect(
-      screen.getByText("No natural hazard alerts are currently available for the selected safety category."),
+      screen.getByText("No natural hazard alerts are currently available for the selected location."),
     ).toBeTruthy();
   });
 

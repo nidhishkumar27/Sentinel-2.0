@@ -29,10 +29,27 @@ export function formatSearch(raw: any): Place[] {
     .map((r) => ({ label: String(r.display_name), lat: Number(r.lat), lng: Number(r.lon), type: r.type }));
 }
 
+// Nominatim blocks placeholder contacts (e.g. "you@example.com") with HTTP 403,
+// which surfaces in the app as "Location search is unavailable". Fall back to a
+// generic application identifier when the configured agent still has one.
+const PLACEHOLDER_UA = /example\.(com|org|net)|you@|your[-\s]?(e-?mail|contact)/i;
+export function resolveGeocoderUserAgent(configured: string): string {
+  return PLACEHOLDER_UA.test(configured) ? 'SentinelSafetyPlatform/2.0' : configured;
+}
+const geocoderUserAgent = resolveGeocoderUserAgent(env.GEOCODER_USER_AGENT);
+if (geocoderUserAgent !== env.GEOCODER_USER_AGENT) {
+  logger.warn(
+    'GEOCODER_USER_AGENT contains a placeholder contact, which Nominatim blocks (HTTP 403). ' +
+      'Using a generic application identifier instead — set a real contact email to comply with the Nominatim usage policy.'
+  );
+}
+
 const client = axios.create({
   baseURL: env.GEOCODER_URL,
-  timeout: 6000,
-  headers: { 'User-Agent': env.GEOCODER_USER_AGENT, 'Accept-Language': 'en' },
+  // Nominatim frequently takes 5s+ on uncached queries; 6s caused spurious
+  // "Location search is unavailable" timeouts. Results are cached for 24h.
+  timeout: 12000,
+  headers: { 'User-Agent': geocoderUserAgent, 'Accept-Language': 'en' },
 });
 
 // Nominatim's usage policy allows max 1 request/second: serialise + space out calls, and cache for 24h.

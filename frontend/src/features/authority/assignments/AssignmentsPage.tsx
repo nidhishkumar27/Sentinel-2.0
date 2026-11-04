@@ -44,6 +44,7 @@ export default function AssignmentsPage() {
       <section className="auth-card">
         <h3>Waiting for a responder ({queue.length})</h3>
         {queue.length === 0 ? <p className="auth-muted">Nothing is waiting.</p> : (
+          <div className="auth-scroll">
           <table className="auth-table">
             <thead><tr><th>Reference</th><th>Category</th><th>Severity</th><th>Status</th><th>Waiting</th><th /></tr></thead>
             <tbody>
@@ -59,12 +60,14 @@ export default function AssignmentsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 
       <section className="auth-card">
         <h3>My assignments ({mine.length})</h3>
         {mine.length === 0 ? <p className="auth-muted">You have no active assignments.</p> : (
+          <div className="auth-scroll">
           <table className="auth-table">
             <thead><tr><th>Reference</th><th>Category</th><th>Severity</th><th>Status</th><th>Address</th></tr></thead>
             <tbody>
@@ -79,6 +82,7 @@ export default function AssignmentsPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
     </>

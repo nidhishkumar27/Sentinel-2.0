@@ -159,30 +159,111 @@ export const browserGeolocationService: GeolocationService = {
         : Promise.resolve(latestLocation?.permissionStatus ?? "unknown");
 
       void permissionStatusPromise.then((status) => {
+        const succeed = (position: GeolocationPosition) => {
+          const snapshot = createSnapshot(position, status, "browser", false);
+          latestLocation = snapshot;
+          resolve({ status: "success", location: snapshot });
+        };
+        const fail = (error: GeolocationPositionError) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            resolve({ status: "permission-denied" });
+            return;
+          }
+          if (error.code === error.TIMEOUT) {
+            resolve({ status: "timeout" });
+            return;
+          }
+          resolve({ status: "unavailable" });
+        };
+        // Many desktops cannot produce a fresh fix on demand (no GPS/Wi-Fi
+        // positioning), but the browser often holds a recent cached one.
+        // Prefer an approximate cached location over reporting unavailable.
+        const fallbackToCachedFix = (error: GeolocationPositionError) => {
+          if (error.code === error.PERMISSION_DENIED) {
+            resolve({ status: "permission-denied" });
+            return;
+          }
+          try {
+            navigator.geolocation.getCurrentPosition(
+              succeed,
+              () => fail(error),
+              { enableHighAccuracy: false, maximumAge: 300_000, timeout: 10_000 },
+            );
+          } catch {
+            fail(error);
+          }
+        };
+
         try {
-          navigator.geolocation.getCurrentPosition(
-            (position) => {
-              const snapshot = createSnapshot(position, status, "browser", false);
-              latestLocation = snapshot;
-              resolve({ status: "success", location: snapshot });
-            },
-            (error) => {
-              if (error.code === error.PERMISSION_DENIED) {
-                resolve({ status: "permission-denied" });
+          // A single getCurrentPosition often resolves with the first, coarse
+          // network fix. Watch instead and keep the most accurate fix,
+          // resolving early once it is good enough (<= 100 m).
+          if (typeof navigator.geolocation.watchPosition === "function") {
+            let best: GeolocationPosition | null = null;
+            let settled = false;
+            let watchId: number | undefined;
+            let timer: ReturnType<typeof setTimeout> | undefined;
+            const cleanup = () => {
+              if (timer !== undefined) clearTimeout(timer);
+              if (watchId !== undefined) {
+                try {
+                  navigator.geolocation.clearWatch(watchId);
+                } catch {
+                  // Ignore cleanup failures; the result is already settled.
+                }
+              }
+            };
+            const succeedBest = (position: GeolocationPosition) => {
+              if (settled) return;
+              settled = true;
+              cleanup();
+              succeed(position);
+            };
+            watchId = navigator.geolocation.watchPosition(
+              (position) => {
+                if (!best || position.coords.accuracy < best.coords.accuracy) {
+                  best = position;
+                }
+                if (best.coords.accuracy <= 100) {
+                  succeedBest(best);
+                }
+              },
+              (error) => {
+                if (settled) return;
+                if (best) {
+                  succeedBest(best);
+                  return;
+                }
+                settled = true;
+                cleanup();
+                fallbackToCachedFix(error);
+              },
+              { enableHighAccuracy: true, maximumAge: 0, timeout: 15_000 },
+            );
+            timer = setTimeout(() => {
+              if (settled) return;
+              if (best) {
+                succeedBest(best);
                 return;
               }
-              if (error.code === error.TIMEOUT) {
-                resolve({ status: "timeout" });
-                return;
-              }
-              resolve({ status: "unavailable" });
-            },
-            {
-              enableHighAccuracy: true,
-              maximumAge: 30_000,
-              timeout: 15_000,
-            },
-          );
+              settled = true;
+              cleanup();
+              fallbackToCachedFix({
+                code: 3,
+                PERMISSION_DENIED: 1,
+                POSITION_UNAVAILABLE: 2,
+                TIMEOUT: 3,
+                message: "Timed out waiting for an accurate location fix",
+              } as GeolocationPositionError);
+            }, 12_000);
+            return;
+          }
+
+          navigator.geolocation.getCurrentPosition(succeed, fallbackToCachedFix, {
+            enableHighAccuracy: true,
+            maximumAge: 0,
+            timeout: 15_000,
+          });
         } catch {
           resolve({ status: "unavailable" });
         }

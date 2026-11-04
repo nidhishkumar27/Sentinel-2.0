@@ -41,6 +41,7 @@ export default function DashboardPage() {
         {needsAttention.length === 0 ? (
           <p className="auth-muted">No unacknowledged incidents.</p>
         ) : (
+          <div className="auth-scroll">
           <table className="auth-table">
             <thead><tr><th>Reference</th><th>Category</th><th>Severity</th><th>Status</th><th>Waiting</th></tr></thead>
             <tbody>
@@ -55,6 +56,7 @@ export default function DashboardPage() {
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </section>
 

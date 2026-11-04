@@ -4,7 +4,7 @@ import { Icon, type IconName } from "../ui/Icon";
 import { useAuth } from "../../features/user/auth/authContext";
 
 const navigation: { label: string; to: string; icon: IconName }[] = [
-  { label: "Dashboard", to: "/", icon: "dashboard" },
+  { label: "Dashboard", to: "/user", icon: "dashboard" },
   { label: "SOS", to: "/sos", icon: "sos" },
   { label: "Safety map", to: "/safety-map", icon: "map" },
   { label: "Emergency contacts", to: "/emergency-contacts", icon: "contacts" },
@@ -71,7 +71,7 @@ export function UserAppShell() {
               className={({ isActive }) =>
                 `nav-link${isActive ? " nav-link--active" : ""}${item.to === "/sos" ? " nav-link--sos" : ""}`
               }
-              end={item.to === "/"}
+              end={item.to === "/user"}
               onClick={() => setMenuOpen(false)}
               to={item.to}
             >
@@ -148,7 +148,7 @@ export function UserAppShell() {
               goes a long way.
             </p>
           </div>
-          <span className="sidebar-version">SENTINEL 2.0 · PREVIEW</span>
+          <span className="sidebar-version">SENTINEL · PREVIEW</span>
         </div>
       </aside>
 

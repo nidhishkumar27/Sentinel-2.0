@@ -8,6 +8,7 @@ import { latSchema, lngSchema, objectId, toPoint } from '../../utils/geo';
 import { broadcast } from '../../sockets';
 import { audit } from '../audit/audit.service';
 import { Alert } from './alert.model';
+import { getHazards } from './hazards.service';
 
 const router = Router();
 router.use(authenticate);
@@ -44,6 +45,17 @@ router.get(
       });
     }
     res.json({ success: true, data });
+  })
+);
+
+// Natural-hazard alerts for a point: USGS earthquakes + forecast-derived
+// flood / landslide / cyclone / heat indicators (see hazards.service).
+router.get(
+  '/hazards',
+  validate({ query: z.object({ lat: latSchema, lng: lngSchema }) }),
+  asyncHandler(async (req, res) => {
+    const { lat, lng } = req.query as unknown as { lat: number; lng: number };
+    res.json({ success: true, data: await getHazards(lat, lng), meta: { sources: ['USGS Earthquake Catalog', 'Sentinel-derived · Open-Meteo forecast'] } });
   })
 );
 

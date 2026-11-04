@@ -743,7 +743,7 @@ export function SOSPage() {
 
             <div aria-live="polite" aria-atomic="true" className="sos-countdown-block">
               <span className="sos-countdown-label">Your emergency request will be sent in</span>
-              <strong>{countdown > 0 ? countdown : "SENDING"}</strong>
+              <strong>{countdown > 0 ? countdown : "Request is sent"}</strong>
             </div>
 
             <p className="sos-location-status" role="status">
