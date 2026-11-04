@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Icon } from "../../../components/ui/Icon";
 import { safetyIntegrations } from "../../../app/integrations";
+import { playUiSound, prepareUiSound } from "../../../services/soundEffects";
 import type {
   EmergencyCategory,
   IncidentConfirmation,
@@ -233,6 +234,7 @@ export function SOSPage() {
   const submittedDescriptionRef = useRef<string | null>(null);
   const lastDescriptionUpdateKeyRef = useRef("");
   const lateDescriptionUpdateRef = useRef<number | null>(null);
+  const playedConfirmationSoundRef = useRef<string | null>(null);
 
   const stopListening = () => {
     if (recognitionRef.current) {
@@ -299,11 +301,13 @@ export function SOSPage() {
       );
     }
 
-    if (permission !== "granted") {
-      setLocationStatusMessage("Location unavailable. SOS will continue without coordinates.");
+    if (permission === "unsupported") {
+      setLocationStatusMessage("This browser cannot provide a live location. SOS will continue without coordinates.");
       return;
     }
 
+    // Calling getCurrentPosition also prompts for permission when the browser
+    // reports "prompt". Previously we returned here and never requested a fix.
     const result = await safetyIntegrations.geolocation.requestCurrentLocation();
     if (result.status === "success") {
       setPendingLocation({
@@ -318,6 +322,11 @@ export function SOSPage() {
 
     if (result.status === "timeout") {
       setLocationStatusMessage("Location request timed out. SOS will continue without coordinates.");
+      return;
+    }
+
+    if (result.status === "permission-denied") {
+      setLocationStatusMessage("Location permission required. SOS will continue without coordinates.");
       return;
     }
 
@@ -429,6 +438,7 @@ export function SOSPage() {
     setLocationStatusMessage("Location unavailable. SOS will continue without coordinates.");
     setDescriptionUpdateStatus("NO DESCRIPTION ADDED");
     setIsPopupOpen(true);
+    void prepareUiSound("/sounds/sos-click.mp3");
     void refreshLocationState();
   };
 
@@ -498,10 +508,14 @@ export function SOSPage() {
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
     try {
+      const requestPromise = safetyIntegrations.incidents.submitIncident(request);
+      const requestId = clientIncidentIdRef.current;
+      if (requestId && playedConfirmationSoundRef.current !== requestId) {
+        playedConfirmationSoundRef.current = requestId;
+        void playUiSound("/sounds/sos-click.mp3");
+      }
       const attempt = await Promise.race([
-        safetyIntegrations.incidents
-          .submitIncident(request)
-          .then((result) => ({ kind: "result" as const, result })),
+        requestPromise.then((result) => ({ kind: "result" as const, result })),
         new Promise<{ kind: "timeout" }>((resolve) => {
           timeoutId = setTimeout(() => resolve({ kind: "timeout" }), SUBMISSION_TIMEOUT_MS);
         }),
@@ -808,6 +822,7 @@ export function SOSPage() {
 
             <div className="sos-actions-row">
               <button
+                aria-pressed={isListening}
                 className="sos-voice-button"
                 disabled={submission.status === "submitting"}
                 onClick={handleSpeak}

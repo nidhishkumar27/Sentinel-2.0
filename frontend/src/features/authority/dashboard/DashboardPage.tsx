@@ -6,12 +6,13 @@ import type { Analytics } from '../../../types/authority';
 import { CategoryBadge, SeverityBadge, StatusBadge } from '../components/Badges';
 import { minutes, timeAgo } from '../lib/format';
 import { useLive } from '../live/LiveDataProvider';
+import { useAuthorityAuth } from '../auth/AuthorityAuthContext';
 
 export default function DashboardPage() {
+  const { user } = useAuthorityAuth();
   const { markers } = useLive();
   const [stats, setStats] = useState<Analytics | null>(null);
   const [error, setError] = useState('');
-
   useEffect(() => {
     const load = () => api.analytics().then((r) => { setStats(r.data); setError(''); }).catch((e) => setError(errorMessage(e)));
     void load();
@@ -25,7 +26,9 @@ export default function DashboardPage() {
 
   return (
     <>
-      <h1>Dashboard</h1>
+      <div className="auth-row authority-dashboard-heading">
+        <h1>Welcome, {user?.name || 'authority'}.</h1>
+      </div>
       {error && <div className="auth-alert auth-alert--warn">Metrics unavailable: {error}</div>}
       <div className="auth-grid auth-grid--stats">
         <Stat label="Open incidents" value={markers.length} />

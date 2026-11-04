@@ -49,13 +49,21 @@ export default function IncidentsPage() {
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   const pages = Math.max(1, Math.ceil(total / LIMIT));
+  const awaiting = rows.filter((row) => row.status === 'created').length;
+  const active = rows.filter((row) => row.status === 'assigned' || row.status === 'in_progress').length;
+  const resolved = rows.filter((row) => row.status === 'resolved').length;
   const reset = <T,>(set: (v: T) => void) => (v: T) => { set(v); setPage(1); };
   const now = Date.now();
 
   return (
     <>
-      <h1>Incidents</h1>
-      <div className="auth-card auth-filters">
+      <div className="incident-page-heading"><div><p className="incident-kicker">RESPONSE OPERATIONS</p><h1>Incident queue</h1><p className="auth-muted">Review incoming reports, filter the queue, and open an incident for its response timeline.</p></div><span className="incident-total"><b>{total}</b><small>total reports</small></span></div>
+      <div className="incident-summary-grid">
+        <div className="incident-summary incident-summary--urgent"><span>Awaiting acknowledgement</span><b>{awaiting}</b></div>
+        <div className="incident-summary"><span>Assigned or in progress</span><b>{active}</b></div>
+        <div className="incident-summary"><span>Resolved on this page</span><b>{resolved}</b></div>
+      </div>
+      <div className="auth-card auth-filters incident-filters">
         <label>Status
           <select value={status} onChange={(e) => reset(setStatus)(e.target.value as Status | '')}>
             <option value="">All</option>
@@ -74,13 +82,13 @@ export default function IncidentsPage() {
       </div>
 
       {error && <div className="auth-alert auth-alert--error" role="alert">{error}</div>}
-      <div className="auth-card auth-scroll">
+      <div className="auth-card auth-scroll incident-table-card">
         <table className="auth-table">
           <thead><tr><th>Reference</th><th>Category</th><th>Severity</th><th>Status</th><th>Reporter</th><th>Assigned to</th><th>AI</th><th>Created</th></tr></thead>
           <tbody>
             {rows.map((r) => (
               <tr key={r.id}>
-                <td><Link to={`/authority/incidents/${r.id}`}>{r.reference}</Link></td>
+                <td><Link className="incident-reference" to={`/authority/incidents/${r.id}`}>{r.reference}<small>Open incident details →</small></Link></td>
                 <td><CategoryBadge category={r.category} /></td>
                 <td><SeverityBadge severity={r.severity} /></td>
                 <td><StatusBadge status={r.status} /></td>

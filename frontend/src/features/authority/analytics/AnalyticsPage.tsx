@@ -17,6 +17,34 @@ function Bars({ data }: { data: Record<string, number> }) {
   );
 }
 
+const CHART_COLORS = ['#355641', '#D6A64F', '#4779A8', '#B65D45', '#7A6AA6', '#5E8E83'];
+
+function Donut({ title, data }: { title: string; data: Record<string, number> }) {
+  const entries = Object.entries(data).filter(([, value]) => value > 0);
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  let offset = 0;
+  if (!total) return <section className="auth-card"><h3>{title}</h3><p className="auth-muted">No data yet.</p></section>;
+  return (
+    <section className="auth-card"><h3>{title}</h3>
+      <div className="auth-donut-layout">
+        <div className="auth-donut" role="img" aria-label={`${title}: ${entries.map(([name, value]) => `${humanize(name)} ${value}`).join(', ')}`}>
+          <svg viewBox="0 0 120 120" aria-hidden="true">
+            <circle className="auth-donut-track" cx="60" cy="60" r="48" />
+            {entries.map(([name, value], index) => {
+              const length = (value / total) * 301.59;
+              const dashOffset = -offset;
+              offset += length;
+              return <circle key={name} className="auth-donut-segment" cx="60" cy="60" r="48" stroke={CHART_COLORS[index % CHART_COLORS.length]} strokeDasharray={`${length} ${301.59 - length}`} strokeDashoffset={dashOffset} />;
+            })}
+          </svg>
+          <strong>{total}<small>Total</small></strong>
+        </div>
+        <ul className="auth-donut-legend">{entries.map(([name, value], index) => <li key={name}><span style={{ background: CHART_COLORS[index % CHART_COLORS.length] }} />{humanize(name)}<b>{value}</b></li>)}</ul>
+      </div>
+    </section>
+  );
+}
+
 export default function AnalyticsPage() {
   const [s, setS] = useState<Analytics | null>(null);
   const [error, setError] = useState('');
@@ -49,8 +77,8 @@ export default function AnalyticsPage() {
         )}
       </section>
       <div className="auth-grid auth-grid--two">
-        <section className="auth-card"><h3>By status</h3><Bars data={s.byStatus} /></section>
-        <section className="auth-card"><h3>By category</h3><Bars data={s.byCategory} /></section>
+        <Donut title="Incidents by status" data={s.byStatus} />
+        <Donut title="Incidents by category" data={s.byCategory} />
       </div>
       <section className="auth-card"><h3>AI enrichment status</h3><Bars data={s.aiEnrichment} /></section>
     </>

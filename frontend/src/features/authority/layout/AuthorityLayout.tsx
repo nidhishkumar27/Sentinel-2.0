@@ -4,6 +4,7 @@ import { useAuthorityAuth } from '../auth/AuthorityAuthContext';
 import { ConnectionBadge } from '../components/Badges';
 import { useLive } from '../live/LiveDataProvider';
 import { usePush } from '../push/usePush';
+import { AuthoritySoundControls } from '../components/AuthoritySoundControls';
 
 const NAV = [
   { to: '/authority', label: 'Dashboard', end: true },
@@ -51,6 +52,7 @@ export default function AuthorityLayout() {
         <header className="auth-top">
           <ConnectionBadge connection={connection} />
           <div className="auth-spacer" />
+          <AuthoritySoundControls />
           {push.state === 'disabled' && <button className="auth-btn auth-btn--small" onClick={() => void push.enable()}>Enable alerts</button>}
           {push.state === 'enabled' && <button className="auth-btn auth-btn--small" onClick={() => void push.disable()}>Alerts on</button>}
           {push.state === 'denied' && <span className="auth-muted small">Notifications blocked in browser</span>}

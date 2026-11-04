@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useContext, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   integrationConfig,
@@ -16,6 +16,7 @@ import type {
   ServiceFailure,
   SafetyAlert,
 } from "../../../types/safetyIntegrations";
+import { AuthContext } from "../auth/authContext";
 
 type DataState = "loading" | "error" | "empty" | "ready";
 type AlertLoadState = "loading" | ServiceFailure | "ready";
@@ -320,6 +321,8 @@ function LocationStatusCard() {
 }
 
 export function DashboardPage() {
+  const auth = useContext(AuthContext);
+  const user = auth?.user ?? null;
   const resources = integrationConfig.demoEnabled
     ? demoDashboardData.resources
     : [];
@@ -370,10 +373,10 @@ export function DashboardPage() {
 
       <section aria-labelledby="welcome-heading" className="welcome-row">
         <div>
-          <p className="eyebrow">A SAFER WAY TO EXPLORE</p>
+          <p className="eyebrow">WELCOME, {(user?.displayName || "traveler").toUpperCase()}</p>
           <h1 id="welcome-heading">Travel with confidence.</h1>
           <p className="welcome-copy">
-            Your safety tools, ready when you need them.
+            Travel with confidence. Your safety tools are ready when you need them.
           </p>
         </div>
         <span aria-hidden="true" className="welcome-decoration">
